@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Aparcar</string>
+    <string name="title_activity_main">Aparcar</string>
+    <string name="package_name">com.aparcar.app</string>
+    <string name="custom_url_scheme">com.aparcar.app</string>
+</resources>

@@ -1,0 +1,356 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
+import { useRank } from '../hooks/useRank'
+import { useGuestSync } from '../hooks/useGuestSync'
+import { RankBadge } from '../components/guild/RankBadge'
+import { StoneCard, GoldCard, Card } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
+import { useToast } from '../components/ui/Toast'
+import { supabase } from '../lib/supabase'
+
+export default function ProfilePage() {
+  const navigate = useNavigate()
+  const { user, isGuest, refreshProfile, signOut } = useAuth()
+  const { rank, rankName } = useRank(user?.xp || 0)
+  const { migrateGuestProgress } = useGuestSync()
+  const { toast } = useToast()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
+
+  const handleRegister = async () => {
+    if (!email || !password) {
+      toast('warning', 'Ingresa email y contraseña')
+      return
+    }
+    setLoading(true)
+    setIsRegistering(true)
+
+    const registerPromise = supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName || email.split('@')[0] },
+      },
+    })
+    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Registro timeout')), 15000))
+
+    let result
+    try {
+      result = await Promise.race([registerPromise, timeoutPromise])
+    } catch (err: any) {
+      toast('error', err.message || 'Error al registrar')
+      setLoading(false)
+      setIsRegistering(false)
+      return
+    }
+
+    const { data, error } = result
+
+    if (error) {
+      toast('error', error.message)
+      setLoading(false)
+      setIsRegistering(false)
+      return
+    }
+
+    if (data.user) {
+      await migrateGuestProgress(data.user.id)
+      await refreshProfile()
+      toast('success', '¡Bienvenido al Gremio, aventurero!')
+    }
+
+    setLoading(false)
+    setIsRegistering(false)
+  }
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      toast('warning', 'Ingresa email y contraseña')
+      return
+    }
+    setLoading(true)
+    setIsLoggingIn(true)
+
+    const loginPromise = supabase.auth.signInWithPassword({ email, password })
+    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Login timeout')), 15000))
+
+    let result
+    try {
+      result = await Promise.race([loginPromise, timeoutPromise])
+    } catch (err: any) {
+      toast('error', err.message || 'Error al iniciar sesión')
+      setLoading(false)
+      setIsLoggingIn(false)
+      return
+    }
+
+    const { data, error } = result
+
+    if (error) {
+      toast('error', error.message)
+      setLoading(false)
+      setIsLoggingIn(false)
+      return
+    }
+
+    if (data.session) {
+      toast('success', '¡Bienvenido al Gremio!')
+      await refreshProfile()
+    }
+
+    setLoading(false)
+    setIsLoggingIn(false)
+  }
+
+  const handleGoogleLogin = async () => {
+    const oauthPromise = supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/profile' },
+    })
+    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Google login timeout')), 15000))
+
+    try {
+      await Promise.race([oauthPromise, timeoutPromise])
+    } catch (err: any) {
+      toast('error', err.message || 'Error con Google')
+    }
+  }
+
+  const handleLogout = async () => {
+    await signOut()
+    toast('info', 'Has salido del Gremio. Modo invitado activado.')
+  }
+
+  const handleRedeemPromo = async () => {
+    if (!promoCode.trim() || !user?.id) return
+    setPromoLoading(true)
+
+    const { data, error } = await supabase.rpc('use_promo_code', {
+      p_code: promoCode.trim().toUpperCase(),
+      p_user_id: user.id,
+    })
+
+    setPromoLoading(false)
+
+    if (error) {
+      toast('error', 'Error al canjear código')
+      return
+    }
+
+    if (data.success) {
+      toast('success', `¡Código canjeado! +${data.value} ${data.type === 'gold' ? 'oro' : 'XP'}`)
+      setPromoCode('')
+      await refreshProfile()
+    } else {
+      toast('error', data.error || 'Error al canjear código')
+    }
+  }
+
+  if (isGuest) {
+    return (
+      <div className="space-y-lg">
+        <div>
+          <h1 className="font-headline-lg text-headline-lg text-primary">Baúl</h1>
+          <p className="font-label-sm text-outline">Tu identidad en el Reino</p>
+        </div>
+
+        <GoldCard>
+          <div className="text-center">
+            <div className="flex justify-center mb-md">
+              <RankBadge rank={rank} size="lg" />
+            </div>
+            <h2 className="font-title-lg text-title-lg text-on-surface mb-xs">Rango {rank} — Aventurero Invitado</h2>
+            <p className="font-label-lg text-label-lg text-outline">{user?.xp || 0} XP</p>
+          </div>
+        </GoldCard>
+
+        <Card>
+          <h3 className="font-title-lg text-title-lg text-on-surface mb-lg text-center">
+            Únete al Gremio de Aventureros
+          </h3>
+
+          <div className="space-y-md">
+            <Button variant="outline" onClick={handleGoogleLogin} className="w-full">
+              <span className="material-symbols-outlined">account_circle</span>
+              Continuar con Google
+            </Button>
+
+            <div className="flex items-center gap-md">
+              <div className="flex-1 h-px bg-outline-variant" />
+              <span className="font-label-sm text-outline uppercase tracking-wider">o</span>
+              <div className="flex-1 h-px bg-outline-variant" />
+            </div>
+
+            <div>
+              <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Nombre (opcional)</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
+                           text-on-surface placeholder:text-outline font-label-lg
+                           focus:outline-none focus:border-primary-container min-h-[48px]"
+                placeholder="Tu nombre de aventurero"
+              />
+            </div>
+            <div>
+              <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
+                           text-on-surface placeholder:text-outline font-label-lg
+                           focus:outline-none focus:border-primary-container min-h-[48px]"
+                placeholder="aventurero@reino.com"
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Contraseña</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
+                           text-on-surface placeholder:text-outline font-label-lg
+                           focus:outline-none focus:border-primary-container min-h-[48px]"
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
+
+            <div className="flex gap-sm">
+              <Button variant="gold" onClick={handleRegister} isLoading={loading && isRegistering} className="flex-1">
+                Registrarme
+              </Button>
+              <Button variant="outline" onClick={handleLogin} isLoading={loading && isLoggingIn} className="flex-1">
+                Iniciar Sesión
+              </Button>
+            </div>
+
+            <p className="font-label-sm text-outline text-center">
+              Al registrarte, tu progreso de invitado se sincronizará. Si tienes 100+ XP, obtendrás Rango E.
+            </p>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-lg">
+      <div>
+        <h1 className="font-headline-lg text-headline-lg text-primary">Baúl</h1>
+        <p className="font-label-sm text-outline">Tu identidad en el Reino</p>
+      </div>
+
+      <StoneCard className="p-lg">
+        <div className="w-20 h-20 rounded-full border-2 border-primary flex items-center justify-center mb-md mx-auto bg-surface-container">
+          <span className="material-symbols-outlined text-primary text-4xl">person</span>
+        </div>
+        <div className="text-center">
+          <h2 className="font-title-lg text-title-lg text-on-surface">
+            {user?.full_name || 'Aventurero'}
+          </h2>
+          <p className="font-label-lg text-outline flex items-center justify-center gap-xs mt-xs">
+            <span className="material-symbols-outlined text-sm">mail</span>
+            {user?.email || 'Sin email'}
+          </p>
+        </div>
+      </StoneCard>
+
+      <StoneCard className="p-lg">
+        <div className="flex items-center gap-lg mb-md">
+          <RankBadge rank={rank} size="md" />
+          <div>
+            <p className="font-title-lg text-title-lg text-on-surface">{rankName}</p>
+            <p className="font-label-lg text-primary">{user?.xp || 0} XP</p>
+          </div>
+        </div>
+        {rank === 'S' && (
+          <div className="flex items-center gap-xs text-primary font-label-lg">
+            <span className="material-symbols-outlined animate-flicker">star</span>
+            Señor Dragón — Rango máximo
+          </div>
+        )}
+      </StoneCard>
+
+      <StoneCard className="p-lg">
+        <div className="flex items-center justify-between mb-md">
+          <span className="font-title-lg text-title-lg text-on-surface">Tu Oro</span>
+          <span className="font-headline-lg text-headline-lg text-primary flex items-center gap-sm">
+            <span className="material-symbols-outlined">payments</span>
+            {user?.gold ?? 0}
+          </span>
+        </div>
+      </StoneCard>
+
+      <Card>
+        <h3 className="font-title-lg text-title-lg text-on-surface mb-md">Canjear Código Promocional</h3>
+        {isGuest || rank === 'F' ? (
+          <p className="font-body-md text-outline">
+            Los códigos promocionales son solo para aventureros registrados (Rango E o superior).
+          </p>
+        ) : (
+          <div className="space-y-md">
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
+                         text-on-surface placeholder:text-outline font-label-lg
+                         focus:outline-none focus:border-primary-container min-h-[48px] uppercase"
+              placeholder="Código (ej: BIENVENIDO2024)"
+            />
+            <Button variant="gold" onClick={handleRedeemPromo} isLoading={promoLoading} disabled={!promoCode.trim()} className="w-full">
+              Canjear
+            </Button>
+          </div>
+        )}
+      </Card>
+
+      <div className="grid grid-cols-2 gap-md">
+        <Card hover onClick={() => navigate('/guild')}>
+          <span className="material-symbols-outlined text-primary text-2xl mb-sm">military_tech</span>
+          <p className="font-title-lg text-title-lg text-on-surface">Rangos</p>
+          <p className="font-label-sm text-outline">Ver jerarquía</p>
+        </Card>
+        <Card hover onClick={() => navigate('/missions')}>
+          <span className="material-symbols-outlined text-secondary text-2xl mb-sm">history</span>
+          <p className="font-title-lg text-title-lg text-on-surface">Historial</p>
+          <p className="font-label-sm text-outline">Misiones completadas</p>
+        </Card>
+      </div>
+
+      {user?.role === 'admin' && (
+        <Card hover onClick={() => navigate('/admin')}>
+          <span className="material-symbols-outlined text-error text-2xl mb-sm">admin_panel_settings</span>
+          <p className="font-title-lg text-title-lg text-on-surface">Panel de Administración</p>
+          <p className="font-label-sm text-outline">Gestionar el Gremio</p>
+        </Card>
+      )}
+
+      {user?.role === 'merchant' && (
+        <Card hover onClick={() => navigate('/scan')}>
+          <span className="material-symbols-outlined text-secondary text-2xl mb-sm">qr_code_scanner</span>
+          <p className="font-title-lg text-title-lg text-on-surface">Escáner QR</p>
+          <p className="font-label-sm text-outline">Verificar misiones</p>
+        </Card>
+      )}
+
+      <Button variant="danger" onClick={handleLogout} className="w-full">
+        <span className="material-symbols-outlined">logout</span>
+        Abandonar el Gremio
+      </Button>
+    </div>
+  )
+}
