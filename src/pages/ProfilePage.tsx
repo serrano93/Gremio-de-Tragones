@@ -33,42 +33,33 @@ export default function ProfilePage() {
     setLoading(true)
     setIsRegistering(true)
 
-    const registerPromise = supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName || email.split('@')[0] },
-      },
-    })
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Registro timeout')), 15000))
-
-    let result
     try {
-      result = await Promise.race([registerPromise, timeoutPromise])
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName || email.split('@')[0] },
+        },
+      })
+
+      if (error) {
+        toast('error', error.message)
+        setLoading(false)
+        setIsRegistering(false)
+        return
+      }
+
+      if (data.user) {
+        await migrateGuestProgress(data.user.id)
+        await refreshProfile()
+        toast('success', '¡Bienvenido al Gremio, aventurero!')
+      }
     } catch (err: any) {
       toast('error', err.message || 'Error al registrar')
+    } finally {
       setLoading(false)
       setIsRegistering(false)
-      return
     }
-
-    const { data, error } = result
-
-    if (error) {
-      toast('error', error.message)
-      setLoading(false)
-      setIsRegistering(false)
-      return
-    }
-
-    if (data.user) {
-      await migrateGuestProgress(data.user.id)
-      await refreshProfile()
-      toast('success', '¡Bienvenido al Gremio, aventurero!')
-    }
-
-    setLoading(false)
-    setIsRegistering(false)
   }
 
   const handleLogin = async () => {
@@ -79,46 +70,38 @@ export default function ProfilePage() {
     setLoading(true)
     setIsLoggingIn(true)
 
-    const loginPromise = supabase.auth.signInWithPassword({ email, password })
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Login timeout')), 15000))
-
-    let result
     try {
-      result = await Promise.race([loginPromise, timeoutPromise])
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+      if (error) {
+        toast('error', error.message)
+        setLoading(false)
+        setIsLoggingIn(false)
+        return
+      }
+
+      if (data.session) {
+        toast('success', '¡Bienvenido al Gremio!')
+        await refreshProfile()
+      }
     } catch (err: any) {
       toast('error', err.message || 'Error al iniciar sesión')
+    } finally {
       setLoading(false)
       setIsLoggingIn(false)
-      return
     }
-
-    const { data, error } = result
-
-    if (error) {
-      toast('error', error.message)
-      setLoading(false)
-      setIsLoggingIn(false)
-      return
-    }
-
-    if (data.session) {
-      toast('success', '¡Bienvenido al Gremio!')
-      await refreshProfile()
-    }
-
-    setLoading(false)
-    setIsLoggingIn(false)
   }
 
   const handleGoogleLogin = async () => {
-    const oauthPromise = supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/profile' },
-    })
-    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Google login timeout')), 15000))
-
     try {
-      await Promise.race([oauthPromise, timeoutPromise])
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + '/profile' },
+      })
+
+      if (error) {
+        toast('error', error.message)
+      }
     } catch (err: any) {
       toast('error', err.message || 'Error con Google')
     }
@@ -133,24 +116,29 @@ export default function ProfilePage() {
     if (!promoCode.trim() || !user?.id) return
     setPromoLoading(true)
 
-    const { data, error } = await supabase.rpc('use_promo_code', {
-      p_code: promoCode.trim().toUpperCase(),
-      p_user_id: user.id,
-    })
+    try {
+      const { data, error } = await supabase.rpc('use_promo_code', {
+        p_code: promoCode.trim().toUpperCase(),
+        p_user_id: user.id,
+      })
 
-    setPromoLoading(false)
+      setPromoLoading(false)
 
-    if (error) {
+      if (error) {
+        toast('error', 'Error al canjear código')
+        return
+      }
+
+      if (data.success) {
+        toast('success', `¡Código canjeado! +${data.value} ${data.type === 'gold' ? 'oro' : 'XP'}`)
+        setPromoCode('')
+        await refreshProfile()
+      } else {
+        toast('error', data.error || 'Error al canjear código')
+      }
+    } catch {
+      setPromoLoading(false)
       toast('error', 'Error al canjear código')
-      return
-    }
-
-    if (data.success) {
-      toast('success', `¡Código canjeado! +${data.value} ${data.type === 'gold' ? 'oro' : 'XP'}`)
-      setPromoCode('')
-      await refreshProfile()
-    } else {
-      toast('error', data.error || 'Error al canjear código')
     }
   }
 
@@ -326,8 +314,8 @@ export default function ProfilePage() {
         </Card>
         <Card hover onClick={() => navigate('/missions')}>
           <span className="material-symbols-outlined text-secondary text-2xl mb-sm">history</span>
-          <p className="font-title-lg text-title-lg text-on-surface">Historial</p>
-          <p className="font-label-sm text-outline">Misiones completadas</p>
+          <p className="font-title-lg text-title-lg text-on-surface">Misiones</p>
+          <p className="font-label-sm text-outline">Ver todas</p>
         </Card>
       </div>
 
