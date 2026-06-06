@@ -36,6 +36,10 @@ export function MissionCard({ mission, status, isGuest, onOpenQR, isCompleted, d
                 {difficulty === 'legendary' ? 'auto_awesome' : difficulty === 'high' ? 'local_fire_department' : difficulty === 'moderate' ? 'auto_stories' : 'pest_control'}
               </span>
             </div>
+            <div className="flex items-center gap-xs bg-primary-container text-on-primary-container px-sm py-xs rounded-sm">
+              <span className="material-symbols-outlined text-sm ms-filled">military_tech</span>
+              <span className="font-label-lg text-label-lg">{mission.xp_reward} XP</span>
+            </div>
             {mission.gold_reward > 0 && (
               <div className="flex items-center gap-xs bg-[#4a3800] text-[#ffb77d] px-sm py-xs rounded-sm">
                 <span className="material-symbols-outlined text-sm ms-filled">payments</span>
