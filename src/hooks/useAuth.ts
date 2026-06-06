@@ -45,12 +45,8 @@ export function useAuth() {
 
   const initStarted = useRef(false)
   const authListenerRef = useRef<{ data: { subscription: { unsubscribe: () => void } } } | null>(null)
-  const isSettingAuth = useRef(false)
 
   const setGuestMode = useCallback(() => {
-    if (isSettingAuth.current) return
-    isSettingAuth.current = true
-
     getOrCreateGuestProfile()
       .then((guest) => {
         setState({
@@ -70,7 +66,6 @@ export function useAuth() {
           isLoading: false,
           isGuest: true,
         })
-        isSettingAuth.current = false
       })
       .catch((err) => {
         console.error('setGuestMode error:', err)
@@ -91,14 +86,10 @@ export function useAuth() {
           isLoading: false,
           isGuest: true,
         })
-        isSettingAuth.current = false
       })
   }, [])
 
   const setUserFromSession = useCallback(async (session: import('@supabase/supabase-js').Session): Promise<boolean> => {
-    if (isSettingAuth.current) return false
-    isSettingAuth.current = true
-
     try {
       const profile = await fetchProfileWithTimeout(session.user.id)
       if (profile) {
@@ -108,13 +99,10 @@ export function useAuth() {
           isLoading: false,
           isGuest: false,
         })
-        isSettingAuth.current = false
         return true
       }
-      isSettingAuth.current = false
       return false
     } catch {
-      isSettingAuth.current = false
       return false
     }
   }, [])
@@ -181,7 +169,7 @@ export function useAuth() {
 
   const refreshProfile = useCallback(async () => {
     const currentUser = state.user
-    if (currentUser && !state.isGuest && currentUser.auth_id && !isSettingAuth.current) {
+    if (currentUser && !state.isGuest && currentUser.auth_id) {
       const profile = await fetchProfileWithTimeout(currentUser.auth_id)
       if (profile) {
         setState((prev) => ({ ...prev, user: profile }))
