@@ -14,17 +14,13 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    overflow: hidden;
-    height: 100%;
   }
 
   body {
     @apply bg-surface text-on-surface font-body-md;
     min-height: 100dvh;
-    overscroll-behavior-y: auto;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
-    touch-action: manipulation;
-    overflow: hidden;
   }
 
   input, textarea, select, button {

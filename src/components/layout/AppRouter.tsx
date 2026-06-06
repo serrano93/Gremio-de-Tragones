@@ -24,9 +24,9 @@ function PageLoader() {
 }
 
 const Layout = ({ children }: { children: ReactNode }) => (
-  <div className="fixed inset-0 bg-surface flex flex-col z-10">
+  <div className="min-h-screen bg-surface flex flex-col relative">
     <TopBar />
-    <main className="flex-1 w-full max-w-[480px] mx-auto pt-20 pb-24 px-4 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+    <main className="flex-1 w-full max-w-[480px] mx-auto pt-20 pb-24 px-4 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
       {children}
     </main>
     <BottomNav />
