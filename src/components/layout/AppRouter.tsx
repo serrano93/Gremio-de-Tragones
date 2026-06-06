@@ -24,9 +24,9 @@ function PageLoader() {
 }
 
 const Layout = ({ children }: { children: ReactNode }) => (
-  <div className="min-h-screen bg-surface flex flex-col relative">
+  <div className="min-h-screen bg-surface flex flex-col relative overflow-hidden">
     <TopBar />
-    <main className="flex-1 w-full max-w-[480px] mx-auto pt-20 pb-24 px-4 overflow-y-auto overscroll-contain">
+    <main className="flex-1 w-full max-w-[480px] mx-auto pt-20 pb-24 px-4 overflow-y-auto overscroll-contain touch-pan-y">
       {children}
     </main>
     <BottomNav />

@@ -19,8 +19,9 @@
   body {
     @apply bg-surface text-on-surface font-body-md;
     min-height: 100dvh;
-    overscroll-behavior: none;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   input, textarea, select, button {
