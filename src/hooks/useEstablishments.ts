@@ -1,27 +1,48 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Establishment } from '../types'
 
 export function useEstablishments(userId: string | null, role: string) {
   const [establishments, setEstablishments] = useState<Establishment[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   const fetchEstablishments = useCallback(async () => {
+    if (!mounted.current) return
     setIsLoading(true)
 
-    let query = supabase.from('establishments').select('*')
+    try {
+      let query = supabase.from('establishments').select('*')
 
-    if (role === 'admin') {
-      // Admin sees all
-    } else if (role === 'merchant' && userId) {
-      query = query.eq('owner_id', userId)
-    } else {
-      query = query.eq('is_active', true)
+      if (role === 'admin') {
+        // Admin sees all
+      } else if (role === 'merchant' && userId) {
+        query = query.eq('owner_id', userId)
+      } else {
+        query = query.eq('is_active', true)
+      }
+
+      const { data, error } = await query.order('name', { ascending: true })
+
+      if (!mounted.current) return
+
+      if (error) {
+        console.error('useEstablishments error:', error)
+        setEstablishments([])
+      } else if (data) {
+        setEstablishments(data as Establishment[])
+      }
+    } catch (err) {
+      console.error('useEstablishments exception:', err)
+      if (mounted.current) setEstablishments([])
+    } finally {
+      if (mounted.current) setIsLoading(false)
     }
-
-    const { data } = await query.order('name')
-    if (data) setEstablishments(data as Establishment[])
-    setIsLoading(false)
   }, [userId, role])
 
   useEffect(() => {

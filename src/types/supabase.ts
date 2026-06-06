@@ -9,6 +9,7 @@ export interface Database {
           full_name: string | null
           role: 'adventurer' | 'merchant' | 'admin'
           xp: number
+          gold: number
           rank: string
           avatar_url: string | null
           created_at: string
@@ -21,6 +22,7 @@ export interface Database {
           full_name?: string | null
           role?: 'adventurer' | 'merchant' | 'admin'
           xp?: number
+          gold?: number
           rank?: string
           avatar_url?: string | null
           created_at?: string
@@ -33,6 +35,7 @@ export interface Database {
           full_name?: string | null
           role?: 'adventurer' | 'merchant' | 'admin'
           xp?: number
+          gold?: number
           rank?: string
           avatar_url?: string | null
           created_at?: string
@@ -81,6 +84,7 @@ export interface Database {
           title: string
           description: string | null
           xp_reward: number
+          gold_reward: number
           required_min_rank: string
           offer_type: 'free_item' | 'discount' | 'exclusive' | 'other'
           is_active: boolean
@@ -93,6 +97,7 @@ export interface Database {
           title: string
           description?: string | null
           xp_reward?: number
+          gold_reward?: number
           required_min_rank?: string
           offer_type?: 'free_item' | 'discount' | 'exclusive' | 'other'
           is_active?: boolean
@@ -105,6 +110,7 @@ export interface Database {
           title?: string
           description?: string | null
           xp_reward?: number
+          gold_reward?: number
           required_min_rank?: string
           offer_type?: 'free_item' | 'discount' | 'exclusive' | 'other'
           is_active?: boolean
@@ -152,6 +158,8 @@ export interface Database {
           required_rank: string
           valid_until: string | null
           is_active: boolean
+          gold_cost: number
+          frequency: 'once' | 'daily' | 'weekly'
           created_at: string
           updated_at: string
         }
@@ -165,6 +173,8 @@ export interface Database {
           required_rank?: string
           valid_until?: string | null
           is_active?: boolean
+          gold_cost?: number
+          frequency?: 'once' | 'daily' | 'weekly'
           created_at?: string
           updated_at?: string
         }
@@ -178,6 +188,8 @@ export interface Database {
           required_rank?: string
           valid_until?: string | null
           is_active?: boolean
+          gold_cost?: number
+          frequency?: 'once' | 'daily' | 'weekly'
           created_at?: string
           updated_at?: string
         }
@@ -216,11 +228,23 @@ export interface Database {
     Functions: {
       verify_and_complete_mission: {
         Args: { payload: Record<string, unknown>; verifier_auth_id: string }
-        Returns: { success: boolean; error?: string; message?: string; xp_awarded?: number; new_total_xp?: number; new_rank?: string }
+        Returns: { success: boolean; error?: string; message?: string; xp_awarded?: number; gold_awarded?: number; new_total_xp?: number; new_total_gold?: number; new_rank?: string }
       }
       migrate_guest_progress: {
         Args: { p_auth_id: string; p_guest_xp?: number }
         Returns: { success: boolean; profile_id?: string; xp?: number; rank?: string; migrated?: boolean }
+      }
+      use_promo_code: {
+        Args: { p_code: string; p_user_id: string }
+        Returns: { success: boolean; error?: string; type?: 'gold' | 'xp'; value?: number; message?: string }
+      }
+      redeem_offer: {
+        Args: { payload: Record<string, unknown>; verifier_auth_id: string }
+        Returns: { success: boolean; error?: string; message?: string; gold_spent?: number; remaining_gold?: number; offer_title?: string; required?: number; available?: number }
+      }
+      claim_welcome_bonus: {
+        Args: { p_auth_id: string }
+        Returns: { success: boolean; error?: string; xp_awarded?: number; new_total_xp?: number; new_rank?: string }
       }
     }
     Enums: {
