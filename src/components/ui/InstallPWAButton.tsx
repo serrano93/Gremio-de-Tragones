@@ -101,8 +101,11 @@ export function InstallPWAButton() {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -100, opacity: 0 }}
         transition={{ type: 'spring', damping: 20 }}
-        className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-[440px] pointer-events-auto"
-        style={{ maxWidth: 'min(440px, calc(100vw - 2rem))' }}
+        className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
+        style={{
+          width: 'min(440px, calc(100vw - 2rem))',
+          maxWidth: 'calc(100vw - 2rem)',
+        }}
       >
         <div className="bg-surface-container-high border-2 border-primary rounded-xl p-md shadow-2xl flex items-center gap-md">
           <div className="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
