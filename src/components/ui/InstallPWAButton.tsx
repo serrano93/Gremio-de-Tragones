@@ -32,12 +32,6 @@ export function InstallPWAButton() {
 
     if (checkInstalled()) return
 
-    const dismissedAt = localStorage.getItem('pwa_install_dismissed')
-    if (dismissedAt) {
-      const hoursSinceDismissed = (Date.now() - Number(dismissedAt)) / (1000 * 60 * 60)
-      if (hoursSinceDismissed < 24) return
-    }
-
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault()
       const promptEvent = e as BeforeInstallPromptEvent
@@ -104,23 +98,23 @@ export function InstallPWAButton() {
           transition={{ type: 'spring', damping: 20 }}
           className="mx-auto w-full max-w-[480px] px-4 pointer-events-auto"
         >
-        <div className="bg-surface-container-high border-2 border-primary rounded-xl p-md shadow-2xl flex items-center gap-md">
-          <div className="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
+        <div className="bg-surface-container-high border-2 border-primary rounded-xl p-sm shadow-2xl flex items-center gap-sm">
+          <div className="w-11 h-11 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-primary text-2xl ms-filled">install_mobile</span>
           </div>
           <button
             onClick={handleInstall}
-            className="flex-1 px-md py-xs bg-primary text-on-primary font-label-lg text-label-lg rounded-md hover:scale-105 active:scale-95 transition-transform min-h-[44px]"
+            className="flex-1 px-md py-sm bg-primary text-on-primary font-label-lg text-label-lg rounded-md hover:scale-105 active:scale-95 transition-transform min-h-[44px]"
             aria-label="Instalar aplicación"
           >
             Instalar
           </button>
           <button
             onClick={handleDismiss}
-            className="text-outline hover:text-on-surface min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
+            className="text-outline hover:text-on-surface w-10 h-10 min-w-[40px] min-h-[40px] flex items-center justify-center shrink-0"
             aria-label="Cerrar"
           >
-            <span className="material-symbols-outlined">close</span>
+            <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
         </motion.div>
