@@ -108,20 +108,16 @@ export function InstallPWAButton() {
           <div className="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-primary text-2xl ms-filled">install_mobile</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-title-md text-title-md text-on-surface">Instalar Gremio</p>
-            <p className="font-label-sm text-label-sm text-outline truncate">Añade la app a tu pantalla de inicio</p>
-          </div>
           <button
             onClick={handleInstall}
-            className="px-md py-xs bg-primary text-on-primary font-label-lg text-label-lg rounded-md hover:scale-105 active:scale-95 transition-transform min-h-[44px] min-w-[44px]"
+            className="flex-1 px-md py-xs bg-primary text-on-primary font-label-lg text-label-lg rounded-md hover:scale-105 active:scale-95 transition-transform min-h-[44px]"
             aria-label="Instalar aplicación"
           >
             Instalar
           </button>
           <button
             onClick={handleDismiss}
-            className="text-outline hover:text-on-surface min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="text-outline hover:text-on-surface min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
             aria-label="Cerrar"
           >
             <span className="material-symbols-outlined">close</span>
