@@ -15,30 +15,20 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     height: 100%;
-    overflow: hidden;
   }
 
   body {
     @apply bg-surface text-on-surface font-body-md;
-    height: 100dvh;
     min-height: 100dvh;
-    overflow: hidden;
-    overscroll-behavior: none;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
   }
 
   #root {
-    height: 100dvh;
     min-height: 100dvh;
-    overflow: hidden;
     display: flex;
     flex-direction: column;
+    align-items: center;
   }
 
   input, textarea, select, button {

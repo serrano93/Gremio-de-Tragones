@@ -24,10 +24,10 @@ function PageLoader() {
 }
 
 const Layout = ({ children }: { children: ReactNode }) => (
-  <div className="h-full bg-surface flex flex-col">
+  <div className="min-h-screen w-full max-w-[480px] bg-surface flex flex-col">
     <TopBar />
     <main
-      className="flex-1 w-full max-w-[480px] mx-auto pt-20 pb-24 px-4 overflow-y-auto"
+      className="flex-1 w-full pt-20 pb-24 px-4 overflow-y-auto"
       style={{
         WebkitOverflowScrolling: 'touch',
         overscrollBehavior: 'contain',
