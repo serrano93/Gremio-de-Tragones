@@ -221,7 +221,7 @@ export default function ProfilePage() {
                 Registrarse
               </Button>
               <Button variant="outline" size="sm" onClick={handleLogin} isLoading={loading && isLoggingIn} className="flex-1 whitespace-nowrap">
-                Iniciar Sesión
+                Inicia Sesión
               </Button>
             </div>
 
