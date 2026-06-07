@@ -96,17 +96,14 @@ export function InstallPWAButton() {
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -100, opacity: 0 }}
-        transition={{ type: 'spring', damping: 20 }}
-        className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto"
-        style={{
-          width: 'min(440px, calc(100vw - 2rem))',
-          maxWidth: 'calc(100vw - 2rem)',
-        }}
-      >
+      <div className="fixed top-20 inset-x-0 z-50 pointer-events-none">
+        <motion.div
+          initial={{ y: -100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -100, opacity: 0 }}
+          transition={{ type: 'spring', damping: 20 }}
+          className="mx-auto w-full max-w-[480px] px-4 pointer-events-auto"
+        >
         <div className="bg-surface-container-high border-2 border-primary rounded-xl p-md shadow-2xl flex items-center gap-md">
           <div className="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-primary text-2xl ms-filled">install_mobile</span>
@@ -130,7 +127,8 @@ export function InstallPWAButton() {
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </AnimatePresence>
   )
 }
