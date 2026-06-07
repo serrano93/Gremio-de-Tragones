@@ -216,11 +216,11 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="flex gap-sm">
-              <Button variant="gold" onClick={handleRegister} isLoading={loading && isRegistering} className="flex-1">
-                Registrarme
+            <div className="flex gap-xs">
+              <Button variant="gold" size="sm" onClick={handleRegister} isLoading={loading && isRegistering} className="flex-1 whitespace-nowrap">
+                Registrarse
               </Button>
-              <Button variant="outline" onClick={handleLogin} isLoading={loading && isLoggingIn} className="flex-1">
+              <Button variant="outline" size="sm" onClick={handleLogin} isLoading={loading && isLoggingIn} className="flex-1 whitespace-nowrap">
                 Iniciar Sesión
               </Button>
             </div>
