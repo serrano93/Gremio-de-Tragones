@@ -5,16 +5,20 @@ import type { Establishment } from '../types'
 export function useEstablishments(userId: string | null, role: string) {
   const [establishments, setEstablishments] = useState<Establishment[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const mounted = useRef(true)
 
   useEffect(() => {
     mounted.current = true
-    return () => { mounted.current = false }
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   const fetchEstablishments = useCallback(async () => {
     if (!mounted.current) return
     setIsLoading(true)
+    setError(null)
 
     try {
       let query = supabase.from('establishments').select('*')
@@ -33,13 +37,17 @@ export function useEstablishments(userId: string | null, role: string) {
 
       if (error) {
         console.error('useEstablishments error:', error)
+        setError(error.message)
         setEstablishments([])
       } else if (data) {
         setEstablishments(data as Establishment[])
       }
     } catch (err) {
       console.error('useEstablishments exception:', err)
-      if (mounted.current) setEstablishments([])
+      if (mounted.current) {
+        setError('Error al cargar establecimientos')
+        setEstablishments([])
+      }
     } finally {
       if (mounted.current) setIsLoading(false)
     }
@@ -69,5 +77,5 @@ export function useEstablishments(userId: string | null, role: string) {
     [],
   )
 
-  return { establishments, isLoading, fetchEstablishments, createEstablishment, updateEstablishment }
+  return { establishments, isLoading, error, refetch: fetchEstablishments, createEstablishment, updateEstablishment }
 }

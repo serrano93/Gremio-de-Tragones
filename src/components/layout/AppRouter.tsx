@@ -1,10 +1,11 @@
-import { lazy, Suspense, type ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode, useState, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
 import { ToastProvider } from '../ui/Toast'
 import { useAuth } from '../../hooks/useAuth'
-import { Loader2 } from 'lucide-react'
+import { LoadingScreen } from '../ui/LoadingScreen'
+import { supabase } from '../../lib/supabase'
 
 const HomePage = lazy(() => import('../../pages/HomePage'))
 const MissionsPage = lazy(() => import('../../pages/MissionsPage'))
@@ -45,11 +46,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth()
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 text-primary animate-spin" />
-      </div>
-    )
+    return null
   }
 
   if (user?.role !== 'admin') {
@@ -59,23 +56,49 @@ function AdminRoute({ children }: { children: ReactNode }) {
   return children
 }
 
+function AuthGate({ children }: { children: ReactNode }) {
+  const { isLoading } = useAuth()
+  const [retryKey, setRetryKey] = useState(0)
+
+  const handleRetry = useCallback(async () => {
+    try {
+      await supabase.auth.signOut()
+    } catch {}
+    window.location.reload()
+  }, [])
+
+  if (isLoading) {
+    return (
+      <LoadingScreen
+        key={retryKey}
+        onRetry={retryKey === 0 ? () => setRetryKey((k) => k + 1) : handleRetry}
+        message="Cargando tu Gremio"
+      />
+    )
+  }
+
+  return <>{children}</>
+}
+
 export function AppRouter() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Layout><HomePage /></Layout>} />
-            <Route path="/missions" element={<Layout><MissionsPage /></Layout>} />
-            <Route path="/guild" element={<Layout><GuildPage /></Layout>} />
-            <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
-            <Route path="/offers" element={<Layout><OffersPage /></Layout>} />
-            <Route path="/scan" element={<Layout><ScanPage /></Layout>} />
-            <Route path="/admin" element={<AdminRoute><Layout><AdminPage /></Layout></AdminRoute>} />
-            <Route path="/login" element={<Layout><LoginPage /></Layout>} />
-            <Route path="/merchant" element={<Layout><MerchantHomePage /></Layout>} />
-          </Routes>
-        </Suspense>
+        <AuthGate>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Layout><HomePage /></Layout>} />
+              <Route path="/missions" element={<Layout><MissionsPage /></Layout>} />
+              <Route path="/guild" element={<Layout><GuildPage /></Layout>} />
+              <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
+              <Route path="/offers" element={<Layout><OffersPage /></Layout>} />
+              <Route path="/scan" element={<Layout><ScanPage /></Layout>} />
+              <Route path="/admin" element={<AdminRoute><Layout><AdminPage /></Layout></AdminRoute>} />
+              <Route path="/login" element={<Layout><LoginPage /></Layout>} />
+              <Route path="/merchant" element={<Layout><MerchantHomePage /></Layout>} />
+            </Routes>
+          </Suspense>
+        </AuthGate>
       </BrowserRouter>
     </ToastProvider>
   )

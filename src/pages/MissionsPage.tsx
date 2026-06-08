@@ -10,7 +10,7 @@ import type { Mission } from '../types'
 export default function MissionsPage() {
   const { user, isGuest } = useAuth()
   const { rank } = useRank(user?.xp || 0)
-  const { missions, isLoading, getMissionStatus } = useMissions(rank, user?.id ?? null, isGuest)
+  const { missions, isLoading, error, refetch, getMissionStatus } = useMissions(rank, user?.id ?? null, isGuest)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null)
   const [isQROpen, setQROpen] = useState(false)
@@ -44,6 +44,8 @@ export default function MissionsPage() {
           missions={missions}
           isLoading={isLoading}
           isGuest={isGuest}
+          error={error}
+          onRetry={refetch}
           getMissionStatus={getMissionStatus}
           onOpenQR={handleOpenQR}
           searchQuery={searchQuery}

@@ -3,8 +3,8 @@ import { supabase } from '../lib/supabase'
 import type { Profile, AuthState } from '../types'
 import { getOrCreateGuestProfile, clearGuestProfile } from '../lib/storage'
 
-const FETCH_PROFILE_TIMEOUT = 8000
-const GET_SESSION_TIMEOUT = 10000
+const FETCH_PROFILE_TIMEOUT = 30000
+const GET_SESSION_TIMEOUT = 45000
 
 async function fetchProfileWithTimeout(authId: string): Promise<Profile | null> {
   try {
@@ -28,6 +28,17 @@ async function fetchProfileWithTimeout(authId: string): Promise<Profile | null> 
   }
 }
 
+async function fetchProfileWithRetry(authId: string, attempts = 3): Promise<Profile | null> {
+  for (let i = 0; i < attempts; i++) {
+    const profile = await fetchProfileWithTimeout(authId)
+    if (profile) return profile
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
+    }
+  }
+  return null
+}
+
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -39,10 +50,13 @@ export function useAuth() {
   const initStarted = useRef(false)
   const mounted = useRef(true)
   const authListenerRef = useRef<{ data: { subscription: { unsubscribe: () => void } } } | null>(null)
+  const intentionalSignOut = useRef(false)
 
   useEffect(() => {
     mounted.current = true
-    return () => { mounted.current = false }
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   const setGuestMode = useCallback(() => {
@@ -93,27 +107,7 @@ export function useAuth() {
   const setUserFromSession = useCallback(async (session: import('@supabase/supabase-js').Session): Promise<boolean> => {
     if (!mounted.current) return false
 
-    let profile = await fetchProfileWithTimeout(session.user.id)
-    if (!mounted.current) return false
-
-    if (!profile) {
-      console.warn('Profile no encontrado, intentando crear con ensure_user_profile...')
-      try {
-        const { data, error } = await supabase.rpc('ensure_user_profile', {
-          p_auth_id: session.user.id,
-          p_email: session.user.email || null,
-          p_full_name: (session.user.user_metadata?.full_name as string) || null,
-        })
-        if (error) {
-          console.error('ensure_user_profile error:', error)
-        } else if (data?.success) {
-          profile = await fetchProfileWithTimeout(session.user.id)
-        }
-      } catch (rpcErr) {
-        console.error('ensure_user_profile exception:', rpcErr)
-      }
-    }
-
+    const profile = await fetchProfileWithRetry(session.user.id)
     if (!mounted.current) return false
 
     if (profile) {
@@ -136,6 +130,15 @@ export function useAuth() {
     return false
   }, [])
 
+  const verifyNoSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data } = await supabase.auth.getSession()
+      return data.session === null
+    } catch {
+      return true
+    }
+  }, [])
+
   useEffect(() => {
     if (initStarted.current) return
     initStarted.current = true
@@ -151,23 +154,36 @@ export function useAuth() {
 
         if (error) {
           console.error('getSession error:', error)
-          await supabase.auth.signOut().catch(() => {})
           if (mounted.current) setGuestMode()
           return
         }
 
         if (data.session) {
-          // Verificar que la sesión no esté expirada
           const expiresAt = data.session.expires_at
           if (expiresAt && expiresAt * 1000 < Date.now()) {
-            console.warn('Sesión expirada, haciendo signOut explícito')
-            await supabase.auth.signOut().catch(() => {})
-            if (mounted.current) setGuestMode()
-            return
+            console.warn('Sesión expirada, intentando refresh...')
+            try {
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+              if (refreshError || !refreshData.session) {
+                intentionalSignOut.current = true
+                await supabase.auth.signOut().catch(() => {})
+                intentionalSignOut.current = false
+                if (mounted.current) setGuestMode()
+                return
+              }
+              const success = await setUserFromSession(refreshData.session)
+              if (success) return
+            } catch {
+              intentionalSignOut.current = true
+              await supabase.auth.signOut().catch(() => {})
+              intentionalSignOut.current = false
+              if (mounted.current) setGuestMode()
+              return
+            }
+          } else {
+            const success = await setUserFromSession(data.session)
+            if (success) return
           }
-
-          const success = await setUserFromSession(data.session)
-          if (success) return
         }
       } catch (err) {
         console.error('Auth init exception:', err)
@@ -185,7 +201,7 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted.current) return
-      console.log('Auth event:', event, session?.user?.id)
+      console.log('Auth event:', event, session?.user?.id, 'intentionalSignOut:', intentionalSignOut.current)
 
       if (event === 'INITIAL_SESSION') return
 
@@ -197,7 +213,19 @@ export function useAuth() {
       }
 
       if (event === 'SIGNED_OUT') {
-        await clearGuestProfile()
+        if (intentionalSignOut.current) {
+          console.log('SIGNED_OUT intencional, saltando verificación')
+          if (mounted.current) setGuestMode()
+          return
+        }
+
+        const noSession = await verifyNoSession()
+        if (!noSession) {
+          console.warn('SIGNED_OUT espurio (getSession devuelve sesión), ignorando')
+          return
+        }
+
+        console.log('SIGNED_OUT confirmado, poniendo en guest')
         if (mounted.current) setGuestMode()
       }
 
@@ -212,7 +240,7 @@ export function useAuth() {
       mounted.current = false
       subscription.unsubscribe()
     }
-  }, [setUserFromSession, setGuestMode])
+  }, [setUserFromSession, setGuestMode, verifyNoSession])
 
   const refreshProfile = useCallback(async () => {
     const currentUser = state.user
@@ -224,20 +252,17 @@ export function useAuth() {
     }
   }, [state.user, state.isGuest])
 
-  // Función helper: limpia la sesión actual (para usar antes de un nuevo login)
-  const clearSession = useCallback(async () => {
+  const signOut = useCallback(async () => {
+    intentionalSignOut.current = true
+    await clearGuestProfile()
     try {
       await supabase.auth.signOut()
     } catch (err) {
-      console.warn('signOut during clearSession:', err)
+      console.warn('signOut error:', err)
     }
-  }, [])
-
-  const signOut = useCallback(async () => {
-    await clearGuestProfile()
-    await supabase.auth.signOut()
+    intentionalSignOut.current = false
     if (mounted.current) setGuestMode()
   }, [setGuestMode])
 
-  return { ...state, refreshProfile, signOut, clearSession }
+  return { ...state, refreshProfile, signOut }
 }

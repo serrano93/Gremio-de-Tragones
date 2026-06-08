@@ -6,6 +6,8 @@ interface MissionListProps {
   missions: Mission[]
   isLoading: boolean
   isGuest: boolean
+  error?: string | null
+  onRetry?: () => void
   getMissionStatus: (missionId: string) => string | null
   onOpenQR: (mission: Mission) => void
   searchQuery: string
@@ -16,6 +18,8 @@ export function MissionList({
   missions,
   isLoading,
   isGuest,
+  error,
+  onRetry,
   getMissionStatus,
   onOpenQR,
   searchQuery,
@@ -32,6 +36,25 @@ export function MissionList({
     return (
       <div className="flex items-center justify-center py-16">
         <span className="material-symbols-outlined text-primary text-5xl animate-spin">progress_activity</span>
+      </div>
+    )
+  }
+
+  if (error && onRetry) {
+    return (
+      <div className="text-center py-12 stone-block rounded-xl">
+        <span className="material-symbols-outlined text-error text-5xl mb-md">cloud_off</span>
+        <p className="font-title-md text-title-md text-on-surface mb-xs">No se pudieron cargar las misiones</p>
+        <p className="font-label-sm text-outline mb-md">{error}</p>
+        <button
+          onClick={onRetry}
+          className="px-lg py-sm bg-primary text-on-primary font-label-lg text-label-lg rounded-md hover:scale-105 active:scale-95 transition-transform min-h-[44px]"
+        >
+          <span className="flex items-center gap-sm">
+            <span className="material-symbols-outlined text-base">refresh</span>
+            Reintentar
+          </span>
+        </button>
       </div>
     )
   }

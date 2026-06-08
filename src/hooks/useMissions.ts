@@ -6,16 +6,25 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
   const [missions, setMissions] = useState<Mission[]>([])
   const [userMissions, setUserMissions] = useState<UserMission[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const mounted = useRef(true)
 
   useEffect(() => {
     mounted.current = true
-    return () => { mounted.current = false }
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   const fetchMissions = useCallback(async () => {
     if (!mounted.current) return
+    if (isGuest || !profileId) {
+      setMissions([])
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
+    setError(null)
     const rankValue = userRank || 'F'
 
     try {
@@ -30,6 +39,7 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
 
       if (error) {
         console.error('useMissions error:', error)
+        setError(error.message)
         setMissions([])
       } else if (data) {
         const rankOrder = ['F', 'E', 'D', 'C', 'B', 'A', 'S']
@@ -42,11 +52,14 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
       }
     } catch (err) {
       console.error('useMissions exception:', err)
-      if (mounted.current) setMissions([])
+      if (mounted.current) {
+        setError('Error al cargar misiones')
+        setMissions([])
+      }
     } finally {
       if (mounted.current) setIsLoading(false)
     }
-  }, [userRank])
+  }, [userRank, profileId, isGuest])
 
   const fetchUserMissions = useCallback(async () => {
     if (!mounted.current) return
@@ -87,5 +100,5 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
     [userMissions],
   )
 
-  return { missions, userMissions, isLoading, fetchMissions, getMissionStatus }
+  return { missions, userMissions, isLoading, error, refetch: fetchMissions, getMissionStatus }
 }

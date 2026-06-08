@@ -5,16 +5,20 @@ import type { Offer } from '../types'
 export function useOffers(userRank: string) {
   const [offers, setOffers] = useState<Offer[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const mounted = useRef(true)
 
   useEffect(() => {
     mounted.current = true
-    return () => { mounted.current = false }
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   const fetchOffers = useCallback(async () => {
     if (!mounted.current) return
     setIsLoading(true)
+    setError(null)
     const rankValue = userRank || 'F'
 
     try {
@@ -29,6 +33,7 @@ export function useOffers(userRank: string) {
 
       if (error) {
         console.error('useOffers error:', error)
+        setError(error.message)
         setOffers([])
       } else if (data) {
         const rankOrder = ['F', 'E', 'D', 'C', 'B', 'A', 'S']
@@ -41,7 +46,10 @@ export function useOffers(userRank: string) {
       }
     } catch (err) {
       console.error('useOffers exception:', err)
-      if (mounted.current) setOffers([])
+      if (mounted.current) {
+        setError('Error al cargar ofertas')
+        setOffers([])
+      }
     } finally {
       if (mounted.current) setIsLoading(false)
     }
@@ -51,5 +59,5 @@ export function useOffers(userRank: string) {
     fetchOffers()
   }, [fetchOffers])
 
-  return { offers, isLoading, fetchOffers }
+  return { offers, isLoading, error, refetch: fetchOffers }
 }

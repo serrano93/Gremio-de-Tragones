@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { user, isGuest, refreshProfile, signOut, clearSession } = useAuth()
+  const { user, isGuest, refreshProfile, signOut } = useAuth()
   const { rank, rankName } = useRank(user?.xp || 0)
   const { migrateGuestProgress } = useGuestSync()
   const { toast } = useToast()
@@ -30,11 +30,9 @@ export default function ProfilePage() {
       toast('warning', 'Ingresa email y contraseña')
       return
     }
+    if (loading || isRegistering || isLoggingIn) return
     setLoading(true)
     setIsRegistering(true)
-
-    // Limpiar cualquier sesión conflictiva antes de registrar
-    await clearSession()
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -46,9 +44,25 @@ export default function ProfilePage() {
       })
 
       if (error) {
-        toast('error', error.message)
-        setLoading(false)
-        setIsRegistering(false)
+        if (error.message.toLowerCase().includes('session') || error.message.toLowerCase().includes('already')) {
+          await supabase.auth.signOut().catch(() => {})
+          const retry = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { full_name: fullName || email.split('@')[0] } },
+          })
+          if (retry.error) {
+            toast('error', retry.error.message)
+            return
+          }
+          if (retry.data.user) {
+            await migrateGuestProgress(retry.data.user.id)
+            await refreshProfile()
+            toast('success', '¡Bienvenido al Gremio, aventurero!')
+          }
+        } else {
+          toast('error', error.message)
+        }
         return
       }
 
@@ -70,19 +84,28 @@ export default function ProfilePage() {
       toast('warning', 'Ingresa email y contraseña')
       return
     }
+    if (loading || isRegistering || isLoggingIn) return
     setLoading(true)
     setIsLoggingIn(true)
-
-    // Limpiar cualquier sesión conflictiva antes de hacer login
-    await clearSession()
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
-        toast('error', error.message)
-        setLoading(false)
-        setIsLoggingIn(false)
+        if (error.message.toLowerCase().includes('session') || error.message.toLowerCase().includes('already') || error.message.toLowerCase().includes('invalid')) {
+          await supabase.auth.signOut().catch(() => {})
+          const retry = await supabase.auth.signInWithPassword({ email, password })
+          if (retry.error) {
+            toast('error', retry.error.message)
+            return
+          }
+          if (retry.data.session) {
+            toast('success', '¡Bienvenido al Gremio!')
+            await refreshProfile()
+          }
+        } else {
+          toast('error', error.message)
+        }
         return
       }
 
