@@ -8,7 +8,10 @@
 --   3. RPC ensure_user_profile() como fallback desde el cliente
 -- ============================================================================
 
--- 1. AÑADIR CONSTRAINTS UNIQUE (necesario para ON CONFLICT)
+-- 1. LIMPIEZA: Eliminar profiles con auth_id NULL (son huérfanos de tests)
+DELETE FROM profiles WHERE auth_id IS NULL;
+
+-- 2. AÑADIR CONSTRAINTS UNIQUE (necesario para ON CONFLICT)
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_auth_id_key;
 ALTER TABLE profiles ADD CONSTRAINT profiles_auth_id_key UNIQUE (auth_id);
 
