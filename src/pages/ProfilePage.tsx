@@ -7,7 +7,7 @@ import { RankBadge } from '../components/guild/RankBadge'
 import { StoneCard, GoldCard, Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
-import { supabase } from '../lib/supabase'
+import { supabaseUrlValue, supabaseAnonKeyValue, AUTH_STORAGE_KEY, type StoredSession, restRpc } from '../lib/supabase'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
@@ -35,44 +35,47 @@ export default function ProfilePage() {
     setIsRegistering(true)
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: fullName || email.split('@')[0] },
+      const res = await fetch(`${supabaseUrlValue}/auth/v1/signup`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKeyValue,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email,
+          password,
+          data: { full_name: fullName || email.split('@')[0] },
+        }),
       })
 
-      if (error) {
-        if (error.message.toLowerCase().includes('session') || error.message.toLowerCase().includes('already')) {
-          await supabase.auth.signOut().catch(() => {})
-          const retry = await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: fullName || email.split('@')[0] } },
-          })
-          if (retry.error) {
-            toast('error', retry.error.message)
-            return
-          }
-          if (retry.data.user) {
-            await migrateGuestProgress(retry.data.user.id)
-            await refreshProfile()
-            toast('success', '¡Bienvenido al Gremio, aventurero!')
-          }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        const errMsg = errBody.msg || errBody.message || `HTTP ${res.status}`
+
+        const isConflict = errBody.error_code === 'user_already_exists' ||
+                           errMsg.toLowerCase().includes('already') ||
+                           errMsg.toLowerCase().includes('registered')
+
+        if (isConflict) {
+          toast('warning', 'Ese email ya está registrado. Inicia sesión.')
         } else {
-          toast('error', error.message)
+          toast('error', errMsg)
         }
         return
       }
 
-      if (data.user) {
+      const data = await res.json() as { user: { id: string }; session: StoredSession | null }
+      if (data.session) {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data.session))
+      }
+
+      if (data.user?.id) {
         await migrateGuestProgress(data.user.id)
         await refreshProfile()
         toast('success', '¡Bienvenido al Gremio, aventurero!')
       }
     } catch (err: any) {
-      toast('error', err.message || 'Error al registrar')
+      toast('error', err?.message || 'Error al registrar')
     } finally {
       setLoading(false)
       setIsRegistering(false)
@@ -89,32 +92,46 @@ export default function ProfilePage() {
     setIsLoggingIn(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const res = await fetch(`${supabaseUrlValue}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKeyValue,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-      if (error) {
-        if (error.message.toLowerCase().includes('session') || error.message.toLowerCase().includes('already') || error.message.toLowerCase().includes('invalid')) {
-          await supabase.auth.signOut().catch(() => {})
-          const retry = await supabase.auth.signInWithPassword({ email, password })
-          if (retry.error) {
-            toast('error', retry.error.message)
-            return
-          }
-          if (retry.data.session) {
-            toast('success', '¡Bienvenido al Gremio!')
-            await refreshProfile()
-          }
-        } else {
-          toast('error', error.message)
-        }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        const errMsg = errBody.msg || errBody.error_description || errBody.message || `HTTP ${res.status}`
+        toast('error', errMsg)
         return
       }
 
-      if (data.session) {
-        toast('success', '¡Bienvenido al Gremio!')
-        await refreshProfile()
+      const session = await res.json() as StoredSession
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+
+      const profileRes = await fetch(
+        `${supabaseUrlValue}/rest/v1/profiles?select=*&auth_id=eq.${session.user.id}&limit=1`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseAnonKeyValue,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        }
+      )
+
+      if (profileRes.ok) {
+        const profiles = await profileRes.json()
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          await refreshProfile()
+        }
       }
+
+      window.location.reload()
     } catch (err: any) {
-      toast('error', err.message || 'Error al iniciar sesión')
+      toast('error', err?.message || 'Error al iniciar sesión')
     } finally {
       setLoading(false)
       setIsLoggingIn(false)
@@ -123,16 +140,18 @@ export default function ProfilePage() {
 
   const handleGoogleLogin = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin + '/profile' },
+      const res = await fetch(`${supabaseUrlValue}/auth/v1/authorize?provider=google`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseAnonKeyValue,
+        },
+        redirect: 'follow',
       })
-
-      if (error) {
-        toast('error', error.message)
+      if (res.url) {
+        window.location.href = res.url
       }
     } catch (err: any) {
-      toast('error', err.message || 'Error con Google')
+      toast('error', err?.message || 'Error con Google')
     }
   }
 
@@ -146,7 +165,13 @@ export default function ProfilePage() {
     setPromoLoading(true)
 
     try {
-      const { data, error } = await supabase.rpc('use_promo_code', {
+      const { data, error } = await restRpc<{
+        success: boolean
+        error?: string
+        type?: 'gold' | 'xp'
+        value?: number
+        message?: string
+      }>('use_promo_code', {
         p_code: promoCode.trim().toUpperCase(),
         p_user_id: user.id,
       })
@@ -158,12 +183,12 @@ export default function ProfilePage() {
         return
       }
 
-      if (data.success) {
+      if (data?.success) {
         toast('success', `¡Código canjeado! +${data.value} ${data.type === 'gold' ? 'oro' : 'XP'}`)
         setPromoCode('')
         await refreshProfile()
       } else {
-        toast('error', data.error || 'Error al canjear código')
+        toast('error', data?.error || 'Error al canjear código')
       }
     } catch {
       setPromoLoading(false)

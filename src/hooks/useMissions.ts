@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { restQuery } from '../lib/supabase'
 import type { Mission, UserMission } from '../types'
+
+const FETCH_TIMEOUT = 8000
 
 export function useMissions(userRank: string, profileId: string | null, isGuest: boolean) {
   const [missions, setMissions] = useState<Mission[]>([])
@@ -25,15 +27,15 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
     }
     setIsLoading(true)
     setError(null)
-    const rankValue = userRank || 'F'
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
     try {
-      const { data, error } = await supabase
-        .from('missions')
-        .select('*, establishment:establishments(id, name)')
-        .eq('is_active', true)
-        .order('required_min_rank', { ascending: true })
-        .order('xp_reward', { ascending: false })
+      const { data, error } = await restQuery<Mission[] & { establishment?: { name: string } | { name: string }[] }>('missions', {
+        select: '*, establishment:establishments(id, name)',
+        filters: { is_active: 'eq.true' },
+      })
 
       if (!mounted.current) return
 
@@ -43,20 +45,25 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
         setMissions([])
       } else if (data) {
         const rankOrder = ['F', 'E', 'D', 'C', 'B', 'A', 'S']
-        const userRankIdx = rankOrder.indexOf(rankValue)
-        const filtered = (data as Mission[]).filter((m) => {
+        const userRankIdx = rankOrder.indexOf(userRank || 'F')
+        const arr = Array.isArray(data) ? data : []
+        const filtered = arr.filter((m) => {
           const reqIdx = rankOrder.indexOf(m.required_min_rank)
           return reqIdx <= userRankIdx
         })
         setMissions(filtered)
       }
     } catch (err) {
-      console.error('useMissions exception:', err)
-      if (mounted.current) {
-        setError('Error al cargar misiones')
-        setMissions([])
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.warn('useMissions: fetch timeout')
+        if (mounted.current) setError('Tiempo de espera agotado')
+      } else {
+        console.error('useMissions exception:', err)
+        if (mounted.current) setError('Error al cargar misiones')
       }
+      if (mounted.current) setMissions([])
     } finally {
+      clearTimeout(timeout)
       if (mounted.current) setIsLoading(false)
     }
   }, [userRank, profileId, isGuest])
@@ -68,22 +75,25 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
       return
     }
 
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
+
     try {
-      const { data, error } = await supabase
-        .from('user_missions')
-        .select('*')
-        .eq('user_id', profileId)
+      const { data, error } = await restQuery<UserMission[]>('user_missions', {
+        filters: { user_id: `eq.${profileId}` },
+      })
 
       if (!mounted.current) return
       if (error) {
         console.error('useMissions user_missions error:', error)
         setUserMissions([])
       } else if (data) {
-        setUserMissions(data as UserMission[])
+        setUserMissions(Array.isArray(data) ? data : [])
       }
     } catch (err) {
-      console.error('useMissions user_missions exception:', err)
       if (mounted.current) setUserMissions([])
+    } finally {
+      clearTimeout(timeout)
     }
   }, [profileId, isGuest])
 

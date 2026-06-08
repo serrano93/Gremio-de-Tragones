@@ -1,46 +1,79 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import {
+  getStoredSession,
+  clearStoredSession,
+  AUTH_STORAGE_KEY,
+  supabaseUrlValue,
+  supabaseAnonKeyValue,
+  type StoredSession,
+} from '../lib/supabase'
 import type { Profile, AuthState } from '../types'
-import { getOrCreateGuestProfile, clearGuestProfile } from '../lib/storage'
+import { getOrCreateGuestProfile, clearGuestProfile as clearLocalGuest } from '../lib/storage'
 
-const FETCH_PROFILE_TIMEOUT = 30000
-const GET_SESSION_TIMEOUT = 45000
+const AUTH_TIMEOUT_MS = 15000
+const PROFILE_TIMEOUT_MS = 10000
+const REFRESH_AHEAD_MS = 5 * 60 * 1000
 
-async function fetchProfileWithTimeout(authId: string): Promise<Profile | null> {
+interface UseAuthState extends AuthState {
+  profileError?: boolean
+}
+
+async function fetchProfileWithTimeout(authId: string, signal?: AbortSignal): Promise<Profile | null> {
+  const session = getStoredSession()
   try {
-    const { data, error } = await Promise.race([
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('auth_id', authId)
-        .maybeSingle(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('fetchProfile timeout')), FETCH_PROFILE_TIMEOUT)),
-    ])
+    const url = new URL(`${supabaseUrlValue}/rest/v1/profiles`)
+    url.searchParams.set('select', '*')
+    url.searchParams.set('auth_id', `eq.${authId}`)
+    url.searchParams.set('limit', '1')
 
-    if (error) {
-      console.error('fetchProfile error:', error)
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'apikey': supabaseAnonKeyValue,
+        'Authorization': `Bearer ${session?.access_token || supabaseAnonKeyValue}`,
+      },
+      signal,
+    })
+
+    if (!res.ok) {
+      console.error('fetchProfile HTTP', res.status)
       return null
     }
-    return (data as Profile) ?? null
+    const data = await res.json()
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0] as Profile
+    }
+    return null
   } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw err
+    }
     console.error('fetchProfile exception:', err)
     return null
   }
 }
 
-async function fetchProfileWithRetry(authId: string, attempts = 3): Promise<Profile | null> {
-  for (let i = 0; i < attempts; i++) {
-    const profile = await fetchProfileWithTimeout(authId)
-    if (profile) return profile
-    if (i < attempts - 1) {
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
-    }
-  }
-  return null
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => {
+      controller.abort()
+      reject(new Error(errorMessage))
+    }, ms)
+    promise
+      .then((value) => {
+        clearTimeout(timeout)
+        resolve(value)
+      })
+      .catch((err) => {
+        clearTimeout(timeout)
+        reject(err)
+      })
+  })
 }
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({
+  const [state, setState] = useState<UseAuthState>({
     user: null,
     session: null,
     isLoading: true,
@@ -49,13 +82,16 @@ export function useAuth() {
 
   const initStarted = useRef(false)
   const mounted = useRef(true)
-  const authListenerRef = useRef<{ data: { subscription: { unsubscribe: () => void } } } | null>(null)
   const intentionalSignOut = useRef(false)
+  const initAbortController = useRef<AbortController | null>(null)
 
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
+      if (initAbortController.current) {
+        initAbortController.current.abort()
+      }
     }
   }, [])
 
@@ -104,16 +140,21 @@ export function useAuth() {
       })
   }, [])
 
-  const setUserFromSession = useCallback(async (session: import('@supabase/supabase-js').Session): Promise<boolean> => {
+  const loadUserFromStoredSession = useCallback(async (session: StoredSession) => {
     if (!mounted.current) return false
 
-    const profile = await fetchProfileWithRetry(session.user.id)
+    const profile = await withTimeout(
+      fetchProfileWithTimeout(session.user.id),
+      PROFILE_TIMEOUT_MS,
+      'fetchProfile timeout'
+    ).catch(() => null)
+
     if (!mounted.current) return false
 
     if (profile) {
       setState({
         user: profile,
-        session,
+        session: session as unknown as import('@supabase/supabase-js').Session,
         isLoading: false,
         isGuest: false,
       })
@@ -126,16 +167,44 @@ export function useAuth() {
       isLoading: false,
       isGuest: true,
       profileError: true,
-    } as AuthState)
+    })
     return false
   }, [])
 
-  const verifyNoSession = useCallback(async (): Promise<boolean> => {
+  const refreshSessionIfNeeded = useCallback(async (): Promise<StoredSession | null> => {
+    const session = getStoredSession()
+    if (!session) return null
+
+    const expiresAt = session.expires_at * 1000
+    const now = Date.now()
+
+    if (expiresAt - now > REFRESH_AHEAD_MS) {
+      return session
+    }
+
     try {
-      const { data } = await supabase.auth.getSession()
-      return data.session === null
-    } catch {
-      return true
+      const res = await fetch(`${supabaseUrlValue}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKeyValue,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: session.refresh_token }),
+      })
+
+      if (!res.ok) {
+        console.warn('refresh failed, clearing session')
+        clearStoredSession()
+        return null
+      }
+
+      const newSession = (await res.json()) as StoredSession
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newSession))
+      console.log('Session refreshed, new expiry:', new Date(newSession.expires_at * 1000))
+      return newSession
+    } catch (err) {
+      console.error('refresh error:', err)
+      return null
     }
   }, [])
 
@@ -143,109 +212,65 @@ export function useAuth() {
     if (initStarted.current) return
     initStarted.current = true
 
+    const controller = new AbortController()
+    initAbortController.current = controller
+
     const init = async () => {
       try {
-        const { data, error } = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), GET_SESSION_TIMEOUT)),
-        ])
+        const session = await withTimeout(
+          refreshSessionIfNeeded(),
+          AUTH_TIMEOUT_MS,
+          'refreshSession timeout'
+        ).catch(() => null)
 
         if (!mounted.current) return
 
-        if (error) {
-          console.error('getSession error:', error)
-          if (mounted.current) setGuestMode()
+        if (!session) {
+          setGuestMode()
           return
         }
 
-        if (data.session) {
-          const expiresAt = data.session.expires_at
-          if (expiresAt && expiresAt * 1000 < Date.now()) {
-            console.warn('Sesión expirada, intentando refresh...')
-            try {
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-              if (refreshError || !refreshData.session) {
-                intentionalSignOut.current = true
-                await supabase.auth.signOut().catch(() => {})
-                intentionalSignOut.current = false
-                if (mounted.current) setGuestMode()
-                return
-              }
-              const success = await setUserFromSession(refreshData.session)
-              if (success) return
-            } catch {
-              intentionalSignOut.current = true
-              await supabase.auth.signOut().catch(() => {})
-              intentionalSignOut.current = false
-              if (mounted.current) setGuestMode()
-              return
-            }
-          } else {
-            const success = await setUserFromSession(data.session)
-            if (success) return
-          }
+        const success = await loadUserFromStoredSession(session)
+        if (!mounted.current) return
+
+        if (!success) {
+          setGuestMode()
         }
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return
         console.error('Auth init exception:', err)
-      }
-
-      if (mounted.current) {
-        setGuestMode()
-      }
-    }
-
-    init().catch((err) => {
-      console.error('Auth init uncaught error:', err)
-      if (mounted.current) setGuestMode()
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted.current) return
-      console.log('Auth event:', event, session?.user?.id, 'intentionalSignOut:', intentionalSignOut.current)
-
-      if (event === 'INITIAL_SESSION') return
-
-      if (event === 'SIGNED_IN' && session) {
-        const success = await setUserFromSession(session)
-        if (!success) {
-          console.warn('Signed in but profile not loaded')
-        }
-      }
-
-      if (event === 'SIGNED_OUT') {
-        if (intentionalSignOut.current) {
-          console.log('SIGNED_OUT intencional, saltando verificación')
-          if (mounted.current) setGuestMode()
-          return
-        }
-
-        const noSession = await verifyNoSession()
-        if (!noSession) {
-          console.warn('SIGNED_OUT espurio (getSession devuelve sesión), ignorando')
-          return
-        }
-
-        console.log('SIGNED_OUT confirmado, poniendo en guest')
         if (mounted.current) setGuestMode()
       }
+    }
 
-      if (event === 'TOKEN_REFRESHED' && session) {
-        await setUserFromSession(session)
+    init()
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === AUTH_STORAGE_KEY) {
+        const newSession = getStoredSession()
+        if (newSession) {
+          loadUserFromStoredSession(newSession)
+        } else if (!intentionalSignOut.current) {
+          setGuestMode()
+        }
       }
-    })
-
-    authListenerRef.current = { data: { subscription } }
+    }
+    window.addEventListener('storage', handleStorageChange)
 
     return () => {
-      mounted.current = false
-      subscription.unsubscribe()
+      controller.abort()
+      window.removeEventListener('storage', handleStorageChange)
     }
-  }, [setUserFromSession, setGuestMode, verifyNoSession])
+  }, [loadUserFromStoredSession, refreshSessionIfNeeded, setGuestMode])
 
   const refreshProfile = useCallback(async () => {
     const currentUser = state.user
     if (currentUser && !state.isGuest && currentUser.auth_id) {
-      const profile = await fetchProfileWithTimeout(currentUser.auth_id)
+      const profile = await withTimeout(
+        fetchProfileWithTimeout(currentUser.auth_id),
+        PROFILE_TIMEOUT_MS,
+        'fetchProfile timeout'
+      ).catch(() => null)
       if (mounted.current && profile) {
         setState((prev) => ({ ...prev, user: profile }))
       }
@@ -254,14 +279,21 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     intentionalSignOut.current = true
-    await clearGuestProfile()
+    await clearLocalGuest()
+    clearStoredSession()
     try {
-      await supabase.auth.signOut()
-    } catch (err) {
-      console.warn('signOut error:', err)
-    }
-    intentionalSignOut.current = false
+      await fetch(`${supabaseUrlValue}/auth/v1/logout`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKeyValue,
+          'Authorization': `Bearer ${getStoredSession()?.access_token || supabaseAnonKeyValue}`,
+        },
+      })
+    } catch {}
     if (mounted.current) setGuestMode()
+    setTimeout(() => {
+      intentionalSignOut.current = false
+    }, 1000)
   }, [setGuestMode])
 
   return { ...state, refreshProfile, signOut }

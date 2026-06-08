@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '../../lib/supabase'
+import { restRpc } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from './Button'
 import localforage from 'localforage'
@@ -34,7 +34,7 @@ export function WelcomeModal() {
   const handleAccept = async () => {
     if (!user?.auth_id) return
     setLoading(true)
-    const { data } = await supabase.rpc('claim_welcome_bonus', {
+    const { data } = await restRpc<{ success: boolean }>('claim_welcome_bonus', {
       p_auth_id: user.auth_id,
     })
     setLoading(false)

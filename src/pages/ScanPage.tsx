@@ -4,7 +4,7 @@ import { MerchantScanner } from '../components/merchant/MerchantScanner'
 import { ScanPreviewModal, type ScanPreviewInfo, type ScanPayloadType } from '../components/merchant/ScanPreviewModal'
 import { StoneCard, GoldCard } from '../components/ui/Card'
 import { useToast } from '../components/ui/Toast'
-import { supabase } from '../lib/supabase'
+import { restQuery, restRpc } from '../lib/supabase'
 import type { Mission, Offer, Establishment } from '../types'
 
 interface QrPayloadBase {
@@ -36,13 +36,13 @@ export default function ScanPage() {
     if (!user?.auth_id) return
     setLoadingEst(true)
     try {
-      const { data, error } = await supabase.rpc('get_merchant_establishments', {
+      const { data, error } = await restRpc<Establishment[]>('get_merchant_establishments', {
         p_auth_id: user.auth_id,
       })
       if (error) {
         console.error('Error fetching establishments:', error)
       } else if (data) {
-        setEstablishments(data as unknown as Establishment[])
+        setEstablishments(Array.isArray(data) ? data : [])
       }
     } catch (err) {
       console.error('Exception fetching establishments:', err)
@@ -70,16 +70,19 @@ export default function ScanPage() {
     if (!type) return null
 
     if (type === 'mission') {
-      const { data, error } = await supabase
-        .from('missions')
-        .select('id, title, description, xp_reward, gold_reward, establishment_id, establishment:establishments(name)')
-        .eq('id', (payload as MissionQrPayload).m)
-        .single()
+      const { data, error } = await restQuery<Mission & { establishment?: { name: string } | { name: string }[] }>('missions', {
+        select: 'id, title, description, xp_reward, gold_reward, establishment_id, establishment:establishments(name)',
+        filters: { id: `eq.${(payload as MissionQrPayload).m}` },
+      })
       if (error || !data) {
         toast('error', 'Misión no encontrada')
         return null
       }
-      const m = data as unknown as Pick<Mission, 'id' | 'title' | 'description' | 'xp_reward' | 'gold_reward' | 'establishment_id'> & { establishment?: { name: string } | { name: string }[] }
+      const m = Array.isArray(data) ? data[0] : data
+      if (!m) {
+        toast('error', 'Misión no encontrada')
+        return null
+      }
       const estName = Array.isArray(m.establishment) ? m.establishment[0]?.name : m.establishment?.name
       return {
         type: 'mission',
@@ -90,16 +93,19 @@ export default function ScanPage() {
         goldReward: m.gold_reward,
       }
     } else {
-      const { data, error } = await supabase
-        .from('offers')
-        .select('id, title, description, gold_cost, establishment_id, establishment:establishments(name)')
-        .eq('id', (payload as OfferQrPayload).o)
-        .single()
+      const { data, error } = await restQuery<Offer & { establishment?: { name: string } | { name: string }[] }>('offers', {
+        select: 'id, title, description, gold_cost, establishment_id, establishment:establishments(name)',
+        filters: { id: `eq.${(payload as OfferQrPayload).o}` },
+      })
       if (error || !data) {
         toast('error', 'Oferta no encontrada')
         return null
       }
-      const o = data as unknown as Pick<Offer, 'id' | 'title' | 'description' | 'gold_cost' | 'establishment_id'> & { establishment?: { name: string } | { name: string }[] }
+      const o = Array.isArray(data) ? data[0] : data
+      if (!o) {
+        toast('error', 'Oferta no encontrada')
+        return null
+      }
       const estName = Array.isArray(o.establishment) ? o.establishment[0]?.name : o.establishment?.name
       return {
         type: 'offer',
@@ -142,20 +148,20 @@ export default function ScanPage() {
 
     setIsProcessing(true)
     try {
-      let rpcName: string
-      if (preview.type === 'mission') {
-        rpcName = 'verify_and_complete_mission'
-      } else {
-        rpcName = 'verify_and_redeem_offer'
-      }
+      const rpcName = preview.type === 'mission' ? 'verify_and_complete_mission' : 'verify_and_redeem_offer'
 
-      const { data: result, error } = await supabase.rpc(
-        rpcName as 'verify_and_complete_mission',
-        {
-          payload: rawPayload as unknown as Record<string, unknown>,
-          verifier_auth_id: user.auth_id,
-        }
-      )
+      const { data: result, error } = await restRpc<{
+        success: boolean
+        error?: string
+        xp_awarded?: number
+        gold_awarded?: number
+        gold_spent?: number
+        new_rank?: string
+        offer_title?: string
+      }>(rpcName, {
+        payload: rawPayload as unknown as Record<string, unknown>,
+        verifier_auth_id: user.auth_id,
+      })
 
       // Cerrar el modal siempre antes de mostrar el resultado
       setPreview(null)

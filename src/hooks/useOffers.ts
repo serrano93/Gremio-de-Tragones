@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { restQuery } from '../lib/supabase'
 import type { Offer } from '../types'
+
+const FETCH_TIMEOUT = 8000
 
 export function useOffers(userRank: string) {
   const [offers, setOffers] = useState<Offer[]>([])
@@ -19,15 +21,15 @@ export function useOffers(userRank: string) {
     if (!mounted.current) return
     setIsLoading(true)
     setError(null)
-    const rankValue = userRank || 'F'
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
     try {
-      const { data, error } = await supabase
-        .from('offers')
-        .select('*, establishment:establishments(id, name)')
-        .eq('is_active', true)
-        .order('required_rank', { ascending: true })
-        .order('title', { ascending: true })
+      const { data, error } = await restQuery<Offer[]>('offers', {
+        select: '*, establishment:establishments(id, name)',
+        filters: { is_active: 'eq.true' },
+      })
 
       if (!mounted.current) return
 
@@ -37,20 +39,23 @@ export function useOffers(userRank: string) {
         setOffers([])
       } else if (data) {
         const rankOrder = ['F', 'E', 'D', 'C', 'B', 'A', 'S']
-        const userRankIdx = rankOrder.indexOf(rankValue)
-        const filtered = (data as Offer[]).filter((o) => {
+        const userRankIdx = rankOrder.indexOf(userRank || 'F')
+        const arr = Array.isArray(data) ? data : []
+        const filtered = arr.filter((o) => {
           const reqIdx = rankOrder.indexOf(o.required_rank)
           return reqIdx <= userRankIdx
         })
         setOffers(filtered)
       }
     } catch (err) {
-      console.error('useOffers exception:', err)
-      if (mounted.current) {
-        setError('Error al cargar ofertas')
-        setOffers([])
+      if (err instanceof Error && err.name === 'AbortError') {
+        if (mounted.current) setError('Tiempo de espera agotado')
+      } else {
+        if (mounted.current) setError('Error al cargar ofertas')
       }
+      if (mounted.current) setOffers([])
     } finally {
+      clearTimeout(timeout)
       if (mounted.current) setIsLoading(false)
     }
   }, [userRank])

@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { StoneCard, GoldCard } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
-import { supabase } from '../lib/supabase'
+import { restRpc, supabaseUrlValue, supabaseAnonKeyValue, getStoredSession } from '../lib/supabase'
 import type { Establishment } from '../types'
 
 export default function MerchantHomePage() {
@@ -19,38 +19,47 @@ export default function MerchantHomePage() {
     if (!user?.auth_id) return
     setLoading(true)
     try {
-      const { data: estData, error: estError } = await supabase.rpc('get_merchant_establishments', {
+      const { data: estData, error: estError } = await restRpc<Establishment[]>('get_merchant_establishments', {
         p_auth_id: user.auth_id,
       })
       if (estError) {
         toast('error', 'Error al cargar tus establecimientos')
       } else if (estData) {
-        setEstablishments(estData as unknown as Establishment[])
+        setEstablishments(Array.isArray(estData) ? estData : [])
       }
 
-      // Stats simples: validaciones hoy y total
       try {
         const verifierId = user.id
         const todayStart = new Date()
         todayStart.setHours(0, 0, 0, 0)
 
-        const [visitsToday, visitsTotal] = await Promise.all([
-          supabase
-            .from('visits')
-            .select('id', { count: 'exact', head: true })
-            .eq('verified_by', verifierId)
-            .gte('verified_at', todayStart.toISOString()),
-          supabase
-            .from('visits')
-            .select('id', { count: 'exact', head: true })
-            .eq('verified_by', verifierId),
+        const session = getStoredSession()
+        const authHeader = `Bearer ${session?.access_token || supabaseAnonKeyValue}`
+        const baseHeaders = { 'apikey': supabaseAnonKeyValue, 'Authorization': authHeader }
+
+        const [visitsTodayRes, visitsTotalRes] = await Promise.all([
+          fetch(`${supabaseUrlValue}/rest/v1/visits?id=eq.${verifierId}&verified_at=gte.${todayStart.toISOString()}&select=id`, {
+            method: 'HEAD',
+            headers: baseHeaders,
+          }),
+          fetch(`${supabaseUrlValue}/rest/v1/visits?id=eq.${verifierId}&select=id`, {
+            method: 'HEAD',
+            headers: baseHeaders,
+          }),
         ])
 
-        const today = (visitsToday.count || 0)
-        const total = (visitsTotal.count || 0)
+        const getCountFromContentRange = (res: Response) => {
+          const cr = res.headers.get('content-range')
+          if (!cr) return 0
+          const match = cr.match(/\/(\d+)/)
+          return match ? Number(match[1]) : 0
+        }
+
+        const today = getCountFromContentRange(visitsTodayRes)
+        const total = getCountFromContentRange(visitsTotalRes)
         setStats({ todayCount: today, totalCount: total })
       } catch {
-        // Stats are nice-to-have, no fallar si falla
+        // Stats are nice-to-have
       }
     } catch (err) {
       console.error('Merchant home error:', err)

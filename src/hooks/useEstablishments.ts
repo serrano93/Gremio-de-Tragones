@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { restQuery } from '../lib/supabase'
 import type { Establishment } from '../types'
+
+const FETCH_TIMEOUT = 8000
 
 export function useEstablishments(userId: string | null, role: string) {
   const [establishments, setEstablishments] = useState<Establishment[]>([])
@@ -20,18 +22,21 @@ export function useEstablishments(userId: string | null, role: string) {
     setIsLoading(true)
     setError(null)
 
-    try {
-      let query = supabase.from('establishments').select('*')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
 
-      if (role === 'admin') {
-        // Admin sees all
-      } else if (role === 'merchant' && userId) {
-        query = query.eq('owner_id', userId)
-      } else {
-        query = query.eq('is_active', true)
+    try {
+      const filters: Record<string, string> = {}
+      if (role === 'merchant' && userId) {
+        filters.owner_id = `eq.${userId}`
+      } else if (role !== 'admin') {
+        filters.is_active = 'eq.true'
       }
 
-      const { data, error } = await query.order('name', { ascending: true })
+      const { data, error } = await restQuery<Establishment[]>('establishments', {
+        select: '*',
+        filters,
+      })
 
       if (!mounted.current) return
 
@@ -40,15 +45,15 @@ export function useEstablishments(userId: string | null, role: string) {
         setError(error.message)
         setEstablishments([])
       } else if (data) {
-        setEstablishments(data as Establishment[])
+        setEstablishments(Array.isArray(data) ? data : [])
       }
     } catch (err) {
-      console.error('useEstablishments exception:', err)
       if (mounted.current) {
         setError('Error al cargar establecimientos')
         setEstablishments([])
       }
     } finally {
+      clearTimeout(timeout)
       if (mounted.current) setIsLoading(false)
     }
   }, [userId, role])
@@ -59,20 +64,35 @@ export function useEstablishments(userId: string | null, role: string) {
 
   const createEstablishment = useCallback(
     async (est: Omit<Establishment, 'id' | 'created_at'>) => {
-      const { data, error } = await supabase.from('establishments').insert(est).select().single()
-      if (error) throw error
-      setEstablishments((prev) => [...prev, data as Establishment])
-      return data as Establishment
+      const { data, error } = await restQuery<Establishment>('establishments', {
+        method: 'POST',
+        body: est,
+        prefer: 'return=representation',
+      })
+      if (error) throw new Error(error.message)
+      if (data) {
+        setEstablishments((prev) => [...prev, data])
+        return data
+      }
+      throw new Error('No data returned')
     },
     [],
   )
 
   const updateEstablishment = useCallback(
     async (id: string, updates: Partial<Establishment>) => {
-      const { data, error } = await supabase.from('establishments').update(updates).eq('id', id).select().single()
-      if (error) throw error
-      setEstablishments((prev) => prev.map((e) => (e.id === id ? (data as Establishment) : e)))
-      return data as Establishment
+      const { data, error } = await restQuery<Establishment>('establishments', {
+        method: 'PATCH',
+        body: updates,
+        filters: { id: `eq.${id}` },
+        prefer: 'return=representation',
+      })
+      if (error) throw new Error(error.message)
+      if (data) {
+        setEstablishments((prev) => prev.map((e) => (e.id === id ? data : e)))
+        return data
+      }
+      throw new Error('No data returned')
     },
     [],
   )
