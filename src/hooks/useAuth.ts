@@ -96,7 +96,6 @@ export function useAuth() {
     let profile = await fetchProfileWithTimeout(session.user.id)
     if (!mounted.current) return false
 
-    // Fallback: si no hay profile (el trigger falló), llamar a ensure_user_profile
     if (!profile) {
       console.warn('Profile no encontrado, intentando crear con ensure_user_profile...')
       try {
@@ -127,14 +126,13 @@ export function useAuth() {
       return true
     }
 
-    // Si no hay profile y estamos seguros, mostramos un estado de error sin deslogear
     setState({
       user: null,
       session: null,
       isLoading: false,
       isGuest: true,
       profileError: true,
-    } as AuthState & { profileError?: boolean })
+    } as AuthState)
     return false
   }, [])
 
@@ -153,15 +151,23 @@ export function useAuth() {
 
         if (error) {
           console.error('getSession error:', error)
-          setGuestMode()
+          await supabase.auth.signOut().catch(() => {})
+          if (mounted.current) setGuestMode()
           return
         }
 
         if (data.session) {
+          // Verificar que la sesión no esté expirada
+          const expiresAt = data.session.expires_at
+          if (expiresAt && expiresAt * 1000 < Date.now()) {
+            console.warn('Sesión expirada, haciendo signOut explícito')
+            await supabase.auth.signOut().catch(() => {})
+            if (mounted.current) setGuestMode()
+            return
+          }
+
           const success = await setUserFromSession(data.session)
           if (success) return
-          // NO hacer signOut aquí - el usuario ya está autenticado, solo no pudimos
-          // cargar su profile. Mejor quedarse en modo guest que deslogearlo.
         }
       } catch (err) {
         console.error('Auth init exception:', err)
@@ -185,9 +191,8 @@ export function useAuth() {
 
       if (event === 'SIGNED_IN' && session) {
         const success = await setUserFromSession(session)
-        // NO hacer signOut si falla - puede ser un problema temporal de red
         if (!success) {
-          console.warn('Signed in but profile not loaded, staying in guest mode')
+          console.warn('Signed in but profile not loaded')
         }
       }
 
@@ -219,11 +224,20 @@ export function useAuth() {
     }
   }, [state.user, state.isGuest])
 
+  // Función helper: limpia la sesión actual (para usar antes de un nuevo login)
+  const clearSession = useCallback(async () => {
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.warn('signOut during clearSession:', err)
+    }
+  }, [])
+
   const signOut = useCallback(async () => {
     await clearGuestProfile()
     await supabase.auth.signOut()
     if (mounted.current) setGuestMode()
   }, [setGuestMode])
 
-  return { ...state, refreshProfile, signOut }
+  return { ...state, refreshProfile, signOut, clearSession }
 }

@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase'
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { user, isGuest, refreshProfile, signOut } = useAuth()
+  const { user, isGuest, refreshProfile, signOut, clearSession } = useAuth()
   const { rank, rankName } = useRank(user?.xp || 0)
   const { migrateGuestProgress } = useGuestSync()
   const { toast } = useToast()
@@ -32,6 +32,9 @@ export default function ProfilePage() {
     }
     setLoading(true)
     setIsRegistering(true)
+
+    // Limpiar cualquier sesión conflictiva antes de registrar
+    await clearSession()
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -69,6 +72,9 @@ export default function ProfilePage() {
     }
     setLoading(true)
     setIsLoggingIn(true)
+
+    // Limpiar cualquier sesión conflictiva antes de hacer login
+    await clearSession()
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
