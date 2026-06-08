@@ -91,7 +91,30 @@ export function useAuth() {
 
   const setUserFromSession = useCallback(async (session: import('@supabase/supabase-js').Session): Promise<boolean> => {
     try {
-      const profile = await fetchProfileWithTimeout(session.user.id)
+      let profile = await fetchProfileWithTimeout(session.user.id)
+
+      // Fallback: si no hay profile (el trigger falló), llamar a ensure_user_profile
+      if (!profile) {
+        console.warn('Profile no encontrado, intentando crear con ensure_user_profile...')
+        try {
+          const { data, error } = await supabase.rpc('ensure_user_profile', {
+            p_auth_id: session.user.id,
+            p_email: session.user.email || null,
+            p_full_name: (session.user.user_metadata?.full_name as string) || null,
+          })
+          if (error) {
+            console.error('ensure_user_profile error:', error)
+            return false
+          }
+          if (data?.success) {
+            // Volver a buscar el profile ahora que existe
+            profile = await fetchProfileWithTimeout(session.user.id)
+          }
+        } catch (rpcErr) {
+          console.error('ensure_user_profile exception:', rpcErr)
+        }
+      }
+
       if (profile) {
         setState({
           user: profile,
