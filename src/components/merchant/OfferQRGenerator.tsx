@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { motion } from 'framer-motion'
 import { Modal } from '../ui/Modal'
-import { generateOfferQRPayload } from '../../lib/qr-utils'
+import { generateOfferQRPayload, type OfferQRPayload } from '../../lib/qr-utils'
 import { QR_EXPIRY_MS } from '../../lib/constants'
 import type { Offer } from '../../types'
 
@@ -15,13 +15,22 @@ interface OfferQRGeneratorProps {
 
 export function OfferQRGenerator({ offer, userId, isOpen, onClose }: OfferQRGeneratorProps) {
   const [timeLeft, setTimeLeft] = useState(QR_EXPIRY_MS)
-  const [payload, setPayload] = useState<ReturnType<typeof generateOfferQRPayload> | null>(null)
+  const [payload, setPayload] = useState<OfferQRPayload | null>(null)
 
   useEffect(() => {
     if (isOpen && offer && userId) {
-      const p = generateOfferQRPayload(userId, offer.id)
-      setPayload(p)
-      setTimeLeft(QR_EXPIRY_MS)
+      let cancelled = false
+      generateOfferQRPayload(userId, offer.id)
+        .then((p) => {
+          if (!cancelled) {
+            setPayload(p)
+            setTimeLeft(QR_EXPIRY_MS)
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to generate offer QR payload:', err)
+        })
+      return () => { cancelled = true }
     }
   }, [isOpen, offer, userId])
 

@@ -14,10 +14,27 @@ export interface OfferQRPayload {
   h: string
 }
 
-export function generateQRPayload(userId: string, missionId: string): QRPayload {
+async function sha256(message: string): Promise<string> {
+  if (typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest) {
+    try {
+      const data = new TextEncoder().encode(message)
+      const buffer = await crypto.subtle.digest('SHA-256', data)
+      const bytes = new Uint8Array(buffer)
+      let hex = ''
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0')
+      }
+      return hex
+    } catch (err) {
+      console.warn('crypto.subtle failed, falling back to server hash:', err)
+    }
+  }
+  throw new Error('SHA-256 not available: requiere HTTPS o localhost. Si ves esto, avisa al admin.')
+}
+
+export async function generateQRPayload(userId: string, missionId: string): Promise<QRPayload> {
   const timestamp = new Date().toISOString()
-  const raw = `${userId}:${missionId}:${timestamp}`
-  const hash = sha256(raw)
+  const hash = await sha256(`${userId}:${missionId}:${timestamp}`)
 
   return {
     u: userId,
@@ -39,9 +56,8 @@ export function isOfferQRExpired(payload: OfferQRPayload): boolean {
   return now - ts > QR_EXPIRY_MS
 }
 
-export function verifyQRSignature(payload: QRPayload, userId: string, missionId: string): boolean {
-  const raw = `${payload.u}:${payload.m}:${payload.t}`
-  const expected = sha256(raw)
+export async function verifyQRSignature(payload: QRPayload, userId: string, missionId: string): Promise<boolean> {
+  const expected = await sha256(`${payload.u}:${payload.m}:${payload.t}`)
   return (
     payload.h === expected &&
     payload.u === userId &&
@@ -50,9 +66,8 @@ export function verifyQRSignature(payload: QRPayload, userId: string, missionId:
   )
 }
 
-export function verifyOfferQRSignature(payload: OfferQRPayload, userId: string, offerId: string): boolean {
-  const raw = `${payload.u}:${payload.o}:${payload.t}`
-  const expected = sha256(raw)
+export async function verifyOfferQRSignature(payload: OfferQRPayload, userId: string, offerId: string): Promise<boolean> {
+  const expected = await sha256(`${payload.u}:${payload.o}:${payload.t}`)
   return (
     payload.h === expected &&
     payload.u === userId &&
@@ -61,10 +76,9 @@ export function verifyOfferQRSignature(payload: OfferQRPayload, userId: string, 
   )
 }
 
-export function generateOfferQRPayload(userId: string, offerId: string): OfferQRPayload {
+export async function generateOfferQRPayload(userId: string, offerId: string): Promise<OfferQRPayload> {
   const timestamp = new Date().toISOString()
-  const raw = `${userId}:${offerId}:${timestamp}`
-  const hash = sha256(raw)
+  const hash = await sha256(`${userId}:${offerId}:${timestamp}`)
 
   return {
     u: userId,
@@ -72,21 +86,4 @@ export function generateOfferQRPayload(userId: string, offerId: string): OfferQR
     t: timestamp,
     h: hash,
   }
-}
-
-function sha256(message: string): string {
-  let hash = 0
-  for (let i = 0; i < message.length; i++) {
-    const char = message.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash
-  }
-
-  const hex =
-    (hash >>> 0).toString(16) +
-    ((hash * 31 + message.length) >>> 0).toString(16) +
-    ((hash * 7 + message.length * 3) >>> 0).toString(16) +
-    ((hash * 17 + message.length * 7) >>> 0).toString(16)
-
-  return hex.padStart(32, '0')
 }

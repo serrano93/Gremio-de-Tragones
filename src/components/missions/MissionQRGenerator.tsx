@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import { motion } from 'framer-motion'
 import { Modal } from '../ui/Modal'
-import { generateQRPayload } from '../../lib/qr-utils'
+import { generateQRPayload, type QRPayload } from '../../lib/qr-utils'
 import { QR_EXPIRY_MS } from '../../lib/constants'
 import type { Mission } from '../../types'
 
@@ -15,13 +15,22 @@ interface MissionQRGeneratorProps {
 
 export function MissionQRGenerator({ mission, userId, isOpen, onClose }: MissionQRGeneratorProps) {
   const [timeLeft, setTimeLeft] = useState(QR_EXPIRY_MS)
-  const [payload, setPayload] = useState<ReturnType<typeof generateQRPayload> | null>(null)
+  const [payload, setPayload] = useState<QRPayload | null>(null)
 
   useEffect(() => {
     if (isOpen && mission && userId) {
-      const p = generateQRPayload(userId, mission.id)
-      setPayload(p)
-      setTimeLeft(QR_EXPIRY_MS)
+      let cancelled = false
+      generateQRPayload(userId, mission.id)
+        .then((p) => {
+          if (!cancelled) {
+            setPayload(p)
+            setTimeLeft(QR_EXPIRY_MS)
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to generate QR payload:', err)
+        })
+      return () => { cancelled = true }
     }
   }, [isOpen, mission, userId])
 

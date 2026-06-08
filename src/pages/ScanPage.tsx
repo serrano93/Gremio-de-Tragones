@@ -157,6 +157,10 @@ export default function ScanPage() {
         }
       )
 
+      // Cerrar el modal siempre antes de mostrar el resultado
+      setPreview(null)
+      setRawPayload(null)
+
       if (error) {
         toast('error', error.message)
         return
@@ -189,11 +193,10 @@ export default function ScanPage() {
           toast('success', '¡Oferta canjeada!')
         }
       }
-
-      setPreview(null)
-      setRawPayload(null)
     } catch (err) {
       console.error('Confirm error:', err)
+      setPreview(null)
+      setRawPayload(null)
       toast('error', 'Error inesperado al validar')
     } finally {
       setIsProcessing(false)
