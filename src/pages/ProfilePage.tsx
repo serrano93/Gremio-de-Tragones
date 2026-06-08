@@ -328,10 +328,10 @@ export default function ProfilePage() {
       )}
 
       {user?.role === 'merchant' && (
-        <Card hover onClick={() => navigate('/scan')}>
-          <span className="material-symbols-outlined text-secondary text-2xl mb-sm">qr_code_scanner</span>
-          <p className="font-title-lg text-title-lg text-on-surface">Escáner QR</p>
-          <p className="font-label-sm text-outline">Verificar misiones</p>
+        <Card hover onClick={() => navigate('/merchant')}>
+          <span className="material-symbols-outlined text-secondary text-2xl mb-sm">storefront</span>
+          <p className="font-title-lg text-title-lg text-on-surface">Panel de Comerciante</p>
+          <p className="font-label-sm text-outline">Validar QR y ver mis establecimientos</p>
         </Card>
       )}
 

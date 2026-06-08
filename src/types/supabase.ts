@@ -230,6 +230,10 @@ export interface Database {
         Args: { payload: Record<string, unknown>; verifier_auth_id: string }
         Returns: { success: boolean; error?: string; message?: string; xp_awarded?: number; gold_awarded?: number; new_total_xp?: number; new_total_gold?: number; new_rank?: string }
       }
+      verify_and_redeem_offer: {
+        Args: { payload: Record<string, unknown>; verifier_auth_id: string }
+        Returns: { success: boolean; error?: string; message?: string; gold_spent?: number; remaining_gold?: number; offer_title?: string; required?: number; available?: number }
+      }
       migrate_guest_progress: {
         Args: { p_auth_id: string; p_guest_xp?: number }
         Returns: { success: boolean; profile_id?: string; xp?: number; rank?: string; migrated?: boolean }
@@ -245,6 +249,10 @@ export interface Database {
       claim_welcome_bonus: {
         Args: { p_auth_id: string }
         Returns: { success: boolean; error?: string; xp_awarded?: number; new_total_xp?: number; new_rank?: string }
+      }
+      get_merchant_establishments: {
+        Args: { p_auth_id: string }
+        Returns: Array<{ id: string; name: string; description: string | null; address: string | null; image_url: string | null; is_active: boolean; created_at: string }>
       }
     }
     Enums: {

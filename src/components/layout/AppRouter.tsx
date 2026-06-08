@@ -14,6 +14,7 @@ const OffersPage = lazy(() => import('../../pages/OffersPage'))
 const ScanPage = lazy(() => import('../../pages/ScanPage'))
 const AdminPage = lazy(() => import('../../pages/AdminPage'))
 const LoginPage = lazy(() => import('../../pages/LoginPage'))
+const MerchantHomePage = lazy(() => import('../../pages/MerchantHomePage'))
 
 function PageLoader() {
   return (
@@ -72,6 +73,7 @@ export function AppRouter() {
             <Route path="/scan" element={<Layout><ScanPage /></Layout>} />
             <Route path="/admin" element={<AdminRoute><Layout><AdminPage /></Layout></AdminRoute>} />
             <Route path="/login" element={<Layout><LoginPage /></Layout>} />
+            <Route path="/merchant" element={<Layout><MerchantHomePage /></Layout>} />
           </Routes>
         </Suspense>
       </BrowserRouter>

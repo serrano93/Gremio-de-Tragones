@@ -36,7 +36,19 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     address: '',
     image_url: '',
     is_active: true,
+    owner_id: null as string | null,
   })
+
+  const [merchants, setMerchants] = useState<Array<{ id: string; full_name: string | null; email: string | null }>>([])
+
+  const fetchMerchants = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('role', 'merchant')
+      .order('full_name')
+    if (data) setMerchants(data)
+  }
 
   const fetchPromoCodes = async () => {
     const { data } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false })
@@ -63,6 +75,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
     fetchPromoCodes()
     fetchMissions()
     fetchOffers()
+    fetchMerchants()
   }, [])
 
   const handleTogglePromoActive = async (promo: PromoCode) => {
@@ -123,9 +136,13 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
 
   const handleCreateEst = async () => {
     try {
-      await createEstablishment({ ...estForm, owner_id: null, is_active: estForm.is_active })
+      await createEstablishment({
+        ...estForm,
+        owner_id: estForm.owner_id || null,
+        is_active: estForm.is_active,
+      })
       setShowEstForm(false)
-      setEstForm({ name: '', description: '', address: '', image_url: '', is_active: true })
+      setEstForm({ name: '', description: '', address: '', image_url: '', is_active: true, owner_id: null })
       toast('success', 'Establecimiento creado con éxito')
     } catch {
       toast('error', 'Error al crear establecimiento')
@@ -149,6 +166,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       address: est.address || '',
       image_url: est.image_url || '',
       is_active: est.is_active,
+      owner_id: est.owner_id || null,
     })
     setShowEstForm(true)
   }
@@ -162,6 +180,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
         address: estForm.address,
         image_url: estForm.image_url,
         is_active: estForm.is_active,
+        owner_id: estForm.owner_id || null,
       })
       setShowEstForm(false)
       setEditingEst(null)
@@ -200,7 +219,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       </div>
 
       <div className="flex flex-wrap gap-sm">
-        <Button variant="gold" size="sm" onClick={() => { setEditingEst(null); setEstForm({ name: '', description: '', address: '', image_url: '', is_active: true }); setShowEstForm(true) }}>
+        <Button variant="gold" size="sm" onClick={() => { setEditingEst(null); setEstForm({ name: '', description: '', address: '', image_url: '', is_active: true, owner_id: null }); setShowEstForm(true) }}>
           <span className="material-symbols-outlined text-lg">add</span>
           Nuevo Establecimiento
         </Button>
@@ -227,20 +246,33 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
       <div>
         <h3 className="font-label-lg text-label-lg text-outline uppercase tracking-wider mb-md">Establecimientos</h3>
         <div className="space-y-sm">
-          {establishments.map((est) => (
+          {establishments.map((est) => {
+            const assignedMerchant = merchants.find((m) => m.id === est.owner_id)
+            return (
             <Card key={est.id}>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-md">
-                  <span className="material-symbols-outlined text-secondary text-2xl">storefront</span>
-                  <div>
+                <div className="flex items-center gap-md min-w-0 flex-1">
+                  <span className="material-symbols-outlined text-secondary text-2xl shrink-0">storefront</span>
+                  <div className="min-w-0 flex-1">
                     <p className="font-title-lg text-title-lg text-on-surface">{est.name}</p>
                     <p className="font-label-sm text-outline">
                       {est.is_active ? 'Activo' : 'Inactivo'}
                       {est.address && ` | ${est.address}`}
                     </p>
+                    {assignedMerchant ? (
+                      <p className="font-label-sm text-primary mt-xs flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-sm">storefront</span>
+                        Comerciante: {assignedMerchant.full_name || assignedMerchant.email}
+                      </p>
+                    ) : (
+                      <p className="font-label-sm text-outline mt-xs flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-sm">person_off</span>
+                        Sin comerciante asignado
+                      </p>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-xs">
+                <div className="flex gap-xs shrink-0">
                   <Button variant="ghost" size="sm" onClick={() => handleEditEst(est)}>
                     <span className="material-symbols-outlined text-lg">edit</span>
                   </Button>
@@ -253,7 +285,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                 </div>
               </div>
             </Card>
-          ))}
+            )
+          })}
           {establishments.length === 0 && (
             <p className="text-center text-outline py-xl font-label-lg">No hay establecimientos. Crea el primero.</p>
           )}
@@ -444,6 +477,28 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
             />
             Establecimiento activo
           </label>
+          <div>
+            <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">
+              Comerciante asignado
+            </label>
+            <select
+              value={estForm.owner_id || ''}
+              onChange={(e) => setEstForm((prev) => ({ ...prev, owner_id: e.target.value || null }))}
+              className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
+                         text-on-surface font-label-lg
+                         focus:outline-none focus:border-primary-container min-h-[48px]"
+            >
+              <option value="">— Sin asignar —</option>
+              {merchants.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.full_name || m.email || 'Comerciante'}
+                </option>
+              ))}
+            </select>
+            <p className="font-label-sm text-outline mt-xs">
+              Solo este comerciante podrá validar misiones y ofertas de este establecimiento.
+            </p>
+          </div>
           <Button variant="gold" onClick={editingEst ? handleSaveEdit : handleCreateEst} className="w-full">
             {editingEst ? 'Guardar Cambios' : 'Crear Establecimiento'}
           </Button>
