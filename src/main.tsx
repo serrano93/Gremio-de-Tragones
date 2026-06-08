@@ -6,6 +6,17 @@ import './styles/index.css'
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Root element not found')
 
+// Detectar si hay una versión vieja del SW que cacheaba JS
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) {
+      if (reg.active && !reg.active.scriptURL.includes('sw.js')) {
+        reg.unregister().then(() => console.log('SW antiguo desregistrado'))
+      }
+    }
+  })
+}
+
 createRoot(rootElement).render(
   <StrictMode>
     <App />

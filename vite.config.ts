@@ -43,7 +43,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // Solo cachear assets estáticos (imágenes, fuentes). NO cachear JS para
+        // evitar que se sirva código viejo después de un deploy.
+        globPatterns: ['**/*.{css,html,svg,png,woff2}'],
+        cleanupOutdatedCaches: true,
+        skipWaiting: false,
+        clientsClaim: false,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -59,6 +64,15 @@ export default defineConfig({
             options: {
               cacheName: 'gstatic-fonts-cache',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
+            // Solo cachear assets estáticos, NO HTML ni JS
+            urlPattern: /\.(?:png|jpg|jpeg|svg|webp|woff2)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-assets',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
         ],
