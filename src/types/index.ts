@@ -106,4 +106,5 @@ export interface AuthState {
   session: import('@supabase/supabase-js').Session | null
   isLoading: boolean
   isGuest: boolean
+  profileError?: boolean
 }

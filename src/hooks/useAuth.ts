@@ -7,30 +7,23 @@ const FETCH_PROFILE_TIMEOUT = 8000
 const GET_SESSION_TIMEOUT = 10000
 
 async function fetchProfileWithTimeout(authId: string): Promise<Profile | null> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), FETCH_PROFILE_TIMEOUT)
-
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('auth_id', authId)
-      .single()
-
-    clearTimeout(timeout)
+    const { data, error } = await Promise.race([
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('auth_id', authId)
+        .maybeSingle(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('fetchProfile timeout')), FETCH_PROFILE_TIMEOUT)),
+    ])
 
     if (error) {
       console.error('fetchProfile error:', error)
       return null
     }
-    return data as Profile
+    return (data as Profile) ?? null
   } catch (err) {
-    clearTimeout(timeout)
-    if ((err as Error).name === 'AbortError') {
-      console.error('fetchProfile timeout')
-    } else {
-      console.error('fetchProfile exception:', err)
-    }
+    console.error('fetchProfile exception:', err)
     return null
   }
 }
@@ -44,11 +37,18 @@ export function useAuth() {
   })
 
   const initStarted = useRef(false)
+  const mounted = useRef(true)
   const authListenerRef = useRef<{ data: { subscription: { unsubscribe: () => void } } } | null>(null)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   const setGuestMode = useCallback(() => {
     getOrCreateGuestProfile()
       .then((guest) => {
+        if (!mounted.current) return
         setState({
           user: {
             id: guest.guestId,
@@ -69,6 +69,7 @@ export function useAuth() {
       })
       .catch((err) => {
         console.error('setGuestMode error:', err)
+        if (!mounted.current) return
         setState({
           user: {
             id: 'fallback-guest',
@@ -90,44 +91,51 @@ export function useAuth() {
   }, [])
 
   const setUserFromSession = useCallback(async (session: import('@supabase/supabase-js').Session): Promise<boolean> => {
-    try {
-      let profile = await fetchProfileWithTimeout(session.user.id)
+    if (!mounted.current) return false
 
-      // Fallback: si no hay profile (el trigger falló), llamar a ensure_user_profile
-      if (!profile) {
-        console.warn('Profile no encontrado, intentando crear con ensure_user_profile...')
-        try {
-          const { data, error } = await supabase.rpc('ensure_user_profile', {
-            p_auth_id: session.user.id,
-            p_email: session.user.email || null,
-            p_full_name: (session.user.user_metadata?.full_name as string) || null,
-          })
-          if (error) {
-            console.error('ensure_user_profile error:', error)
-            return false
-          }
-          if (data?.success) {
-            // Volver a buscar el profile ahora que existe
-            profile = await fetchProfileWithTimeout(session.user.id)
-          }
-        } catch (rpcErr) {
-          console.error('ensure_user_profile exception:', rpcErr)
-        }
-      }
+    let profile = await fetchProfileWithTimeout(session.user.id)
+    if (!mounted.current) return false
 
-      if (profile) {
-        setState({
-          user: profile,
-          session,
-          isLoading: false,
-          isGuest: false,
+    // Fallback: si no hay profile (el trigger falló), llamar a ensure_user_profile
+    if (!profile) {
+      console.warn('Profile no encontrado, intentando crear con ensure_user_profile...')
+      try {
+        const { data, error } = await supabase.rpc('ensure_user_profile', {
+          p_auth_id: session.user.id,
+          p_email: session.user.email || null,
+          p_full_name: (session.user.user_metadata?.full_name as string) || null,
         })
-        return true
+        if (error) {
+          console.error('ensure_user_profile error:', error)
+        } else if (data?.success) {
+          profile = await fetchProfileWithTimeout(session.user.id)
+        }
+      } catch (rpcErr) {
+        console.error('ensure_user_profile exception:', rpcErr)
       }
-      return false
-    } catch {
-      return false
     }
+
+    if (!mounted.current) return false
+
+    if (profile) {
+      setState({
+        user: profile,
+        session,
+        isLoading: false,
+        isGuest: false,
+      })
+      return true
+    }
+
+    // Si no hay profile y estamos seguros, mostramos un estado de error sin deslogear
+    setState({
+      user: null,
+      session: null,
+      isLoading: false,
+      isGuest: true,
+      profileError: true,
+    } as AuthState & { profileError?: boolean })
+    return false
   }, [])
 
   useEffect(() => {
@@ -141,6 +149,8 @@ export function useAuth() {
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), GET_SESSION_TIMEOUT)),
         ])
 
+        if (!mounted.current) return
+
         if (error) {
           console.error('getSession error:', error)
           setGuestMode()
@@ -150,43 +160,52 @@ export function useAuth() {
         if (data.session) {
           const success = await setUserFromSession(data.session)
           if (success) return
-          try {
-            await supabase.auth.signOut()
-          } catch {
-            // ignore signout errors
-          }
+          // NO hacer signOut aquí - el usuario ya está autenticado, solo no pudimos
+          // cargar su profile. Mejor quedarse en modo guest que deslogearlo.
         }
       } catch (err) {
         console.error('Auth init exception:', err)
       }
 
-      setGuestMode()
+      if (mounted.current) {
+        setGuestMode()
+      }
     }
 
     init().catch((err) => {
       console.error('Auth init uncaught error:', err)
-      setGuestMode()
+      if (mounted.current) setGuestMode()
     })
 
-    authListenerRef.current = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted.current) return
       console.log('Auth event:', event, session?.user?.id)
+
+      if (event === 'INITIAL_SESSION') return
 
       if (event === 'SIGNED_IN' && session) {
         const success = await setUserFromSession(session)
+        // NO hacer signOut si falla - puede ser un problema temporal de red
         if (!success) {
-          console.error('Signed in but no profile found')
-          await supabase.auth.signOut()
+          console.warn('Signed in but profile not loaded, staying in guest mode')
         }
       }
 
       if (event === 'SIGNED_OUT') {
         await clearGuestProfile()
-        setGuestMode()
+        if (mounted.current) setGuestMode()
+      }
+
+      if (event === 'TOKEN_REFRESHED' && session) {
+        await setUserFromSession(session)
       }
     })
 
+    authListenerRef.current = { data: { subscription } }
+
     return () => {
-      authListenerRef.current?.data.subscription.unsubscribe()
+      mounted.current = false
+      subscription.unsubscribe()
     }
   }, [setUserFromSession, setGuestMode])
 
@@ -194,15 +213,17 @@ export function useAuth() {
     const currentUser = state.user
     if (currentUser && !state.isGuest && currentUser.auth_id) {
       const profile = await fetchProfileWithTimeout(currentUser.auth_id)
-      if (profile) {
+      if (mounted.current && profile) {
         setState((prev) => ({ ...prev, user: profile }))
       }
     }
   }, [state.user, state.isGuest])
 
   const signOut = useCallback(async () => {
+    await clearGuestProfile()
     await supabase.auth.signOut()
-  }, [])
+    if (mounted.current) setGuestMode()
+  }, [setGuestMode])
 
   return { ...state, refreshProfile, signOut }
 }
