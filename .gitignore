@@ -7,7 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs (web)
 dist
 dist-ssr
 *.local
@@ -26,3 +29,28 @@ dist-ssr
 # Supabase CLI temp files
 supabase/.temp/
 
+# Capacitor / Android (feature/android branch)
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/capacitor-cordova-android-plugins/
+
+# Build artifacts
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Capacitor icon generation assets (regenerated from public/)
+assets/*.png
+
+# Distribution artifacts (APK backups for manual install)
+dist-releases/
+
+# OS
+Thumbs.db
