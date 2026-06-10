@@ -298,3 +298,21 @@ export function useAuth() {
 
   return { ...state, refreshProfile, signOut }
 }
+
+export async function processOAuthCallback(search: string, hash: string): Promise<Profile | null> {
+  const { parseOAuthFragment, saveOAuthSession } = await import('../lib/oauth')
+  const fragment = hash || (search && new URLSearchParams(search).get('fragment')) || ''
+  const result = parseOAuthFragment(fragment)
+  if (!result) return null
+
+  saveOAuthSession(result)
+
+  try {
+    const profile = await fetchProfileWithTimeout(result.user.id)
+    return profile
+  } catch (err) {
+    console.error('processOAuthCallback: fetchProfile error:', err)
+    return null
+  }
+}
+
