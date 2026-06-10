@@ -139,19 +139,14 @@ export default function ProfilePage() {
   }
 
   const handleGoogleLogin = async () => {
+    if (loading) return
+    setLoading(true)
     try {
-      const res = await fetch(`${supabaseUrlValue}/auth/v1/authorize?provider=google`, {
-        method: 'GET',
-        headers: {
-          'apikey': supabaseAnonKeyValue,
-        },
-        redirect: 'follow',
-      })
-      if (res.url) {
-        window.location.href = res.url
-      }
+      const { startGoogleLogin } = await import('../lib/oauth')
+      await startGoogleLogin()
     } catch (err: any) {
       toast('error', err?.message || 'Error con Google')
+      setLoading(false)
     }
   }
 
