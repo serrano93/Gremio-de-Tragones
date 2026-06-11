@@ -316,3 +316,16 @@ export async function processOAuthCallback(search: string, hash: string): Promis
   }
 }
 
+export async function processIdTokenCallback(idToken: string): Promise<Profile | null> {
+  const { exchangeIdTokenForSession, saveIdTokenSession } = await import('../lib/oauth')
+  try {
+    const result = await exchangeIdTokenForSession(idToken)
+    saveIdTokenSession(result)
+    const profile = await fetchProfileWithTimeout(result.user.id)
+    return profile
+  } catch (err) {
+    console.error('processIdTokenCallback error:', err)
+    return null
+  }
+}
+

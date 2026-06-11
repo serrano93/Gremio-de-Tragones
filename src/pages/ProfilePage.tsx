@@ -142,7 +142,26 @@ export default function ProfilePage() {
     if (loading) return
     setLoading(true)
     try {
-      const { startGoogleLogin } = await import('../lib/oauth')
+      const { isNativePlatform, waitForGoogleIdentity, signInWithGoogleGIS, startGoogleLogin, getGoogleErrorHint } = await import('../lib/oauth')
+
+      if (!isNativePlatform()) {
+        const gisReady = await waitForGoogleIdentity(3000)
+        if (gisReady) {
+          try {
+            await signInWithGoogleGIS()
+            await refreshProfile()
+            toast('success', '¡Bienvenido al Gremio!')
+            setLoading(false)
+            return
+          } catch (gisErr: any) {
+            console.warn('GIS flow failed, falling back to PKCE:', gisErr)
+            toast('warning', `Método alternativo: ${getGoogleErrorHint(gisErr?.message || '') || gisErr?.message || 'cargando...'}`, 4000)
+          }
+        } else {
+          console.warn('GIS script not loaded within 3s, falling back to PKCE')
+        }
+      }
+
       await startGoogleLogin()
     } catch (err: any) {
       toast('error', err?.message || 'Error con Google')
