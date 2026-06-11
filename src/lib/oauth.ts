@@ -285,6 +285,7 @@ export async function signInWithGoogleGIS(): Promise<IdTokenSignInResponse> {
           }
           try {
             const session = await exchangeIdTokenForSession(response.credential)
+            saveIdTokenSession(session)
             resolve(session)
           } catch (err) {
             reject(err instanceof Error ? err : new Error(String(err)))

@@ -296,7 +296,7 @@ export function useAuth() {
     }, 1000)
   }, [setGuestMode])
 
-  return { ...state, refreshProfile, signOut }
+  return { ...state, refreshProfile, signOut, loadUserFromStoredSession }
 }
 
 export async function processOAuthCallback(search: string, hash: string): Promise<Profile | null> {

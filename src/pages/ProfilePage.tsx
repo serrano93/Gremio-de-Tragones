@@ -11,7 +11,7 @@ import { supabaseUrlValue, supabaseAnonKeyValue, AUTH_STORAGE_KEY, type StoredSe
 
 export default function ProfilePage() {
   const navigate = useNavigate()
-  const { user, isGuest, refreshProfile, signOut } = useAuth()
+  const { user, isGuest, refreshProfile, signOut, loadUserFromStoredSession } = useAuth()
   const { rank, rankName } = useRank(user?.xp || 0)
   const { migrateGuestProgress } = useGuestSync()
   const { toast } = useToast()
@@ -149,10 +149,20 @@ export default function ProfilePage() {
         if (gisReady) {
           try {
             await signInWithGoogleGIS()
-            await refreshProfile()
-            toast('success', '¡Bienvenido al Gremio!')
-            setLoading(false)
-            return
+            const { getStoredSession } = await import('../lib/supabase')
+            const newSession = getStoredSession()
+            if (newSession) {
+              const ok = await loadUserFromStoredSession(newSession)
+              if (ok) {
+                toast('success', '¡Bienvenido al Gremio!')
+                setLoading(false)
+                return
+              }
+              toast('warning', 'Cuenta creada, perfil sincronizando...')
+              setTimeout(() => window.location.reload(), 500)
+              return
+            }
+            throw new Error('Session not saved after GIS login')
           } catch (gisErr: any) {
             console.warn('GIS flow failed, falling back to PKCE:', gisErr)
             toast('warning', `Método alternativo: ${getGoogleErrorHint(gisErr?.message || '') || gisErr?.message || 'cargando...'}`, 4000)
@@ -168,6 +178,7 @@ export default function ProfilePage() {
       setLoading(false)
     }
   }
+
 
   const handleLogout = async () => {
     await signOut()
