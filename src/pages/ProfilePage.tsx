@@ -8,6 +8,9 @@ import { StoneCard, GoldCard, Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { supabaseUrlValue, supabaseAnonKeyValue, AUTH_STORAGE_KEY, type StoredSession, restRpc } from '../lib/supabase'
+import type localforage from 'localforage'
+
+type LocalForage = typeof localforage
 
 export default function ProfilePage() {
   const navigate = useNavigate()
@@ -149,11 +152,13 @@ export default function ProfilePage() {
         if (gisReady) {
           try {
             await signInWithGoogleGIS()
-            const { getStoredSession } = await import('../lib/supabase')
+            const { getStoredSession, restRpc } = await import('../lib/supabase')
+            const localforage = (await import('localforage')).default
             const newSession = getStoredSession()
             if (newSession) {
               const ok = await loadUserFromStoredSession(newSession)
               if (ok) {
+                await tryClaimWelcomeBonus(restRpc, localforage, newSession.user.id)
                 toast('success', '¡Bienvenido al Gremio!')
                 setLoading(false)
                 return
@@ -176,6 +181,42 @@ export default function ProfilePage() {
     } catch (err: any) {
       toast('error', err?.message || 'Error con Google')
       setLoading(false)
+    }
+  }
+
+  const tryClaimWelcomeBonus = async (
+    restRpc: typeof import('../lib/supabase').restRpc,
+    localforage: LocalForage,
+    authId: string
+  ): Promise<void> => {
+    const WELCOME_KEY = 'welcome_shown'
+    const shown = (await localforage.getItem<string[]>(WELCOME_KEY)) ?? []
+    if (shown.includes(authId)) return
+
+    const claimWithRetry = async (retries: number): Promise<boolean> => {
+      const { data, error } = await restRpc<{
+        success: boolean
+        error?: string
+        xp_awarded?: number
+        new_total_xp?: number
+        new_rank?: string
+      }>('claim_welcome_bonus', {
+        p_auth_id: authId,
+      })
+      if (!error && data?.success) return true
+      const errText = data?.error || error?.message || ''
+      const isRace = errText.toLowerCase().includes('perfil no encontrado') || errText.toLowerCase().includes('not found')
+      if (isRace && retries > 0) {
+        await new Promise((r) => setTimeout(r, 800))
+        return claimWithRetry(retries - 1)
+      }
+      return false
+    }
+
+    const success = await claimWithRetry(3)
+    if (success) {
+      await localforage.setItem(WELCOME_KEY, [...shown, authId])
+      await refreshProfile()
     }
   }
 

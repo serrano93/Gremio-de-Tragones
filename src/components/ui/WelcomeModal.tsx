@@ -6,41 +6,78 @@ import { Button } from './Button'
 import localforage from 'localforage'
 
 const WELCOME_KEY = 'welcome_shown'
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 800
 
 export function WelcomeModal() {
   const { user, isGuest, refreshProfile } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [checked, setChecked] = useState(false)
 
   useEffect(() => {
     if (!user || isGuest) return
+    if (!user.auth_id) return
 
     const checkWelcome = async () => {
+      const userKey = user.auth_id as string
       const shown = (await localforage.getItem<string[]>(WELCOME_KEY)) ?? []
-      if (!user.auth_id || shown.includes(user.auth_id)) {
+      if (shown.includes(userKey)) {
         setChecked(true)
         return
       }
       if (user.rank === 'F') {
         setIsOpen(true)
-        await localforage.setItem(WELCOME_KEY, [...shown, user.auth_id])
       }
       setChecked(true)
     }
     checkWelcome()
   }, [user, isGuest])
 
+  const claimBonus = async (retriesLeft: number = MAX_RETRIES): Promise<{ success: boolean; error?: string }> => {
+    if (!user?.auth_id) return { success: false, error: 'auth_id no disponible' }
+    const { data, error } = await restRpc<{
+      success: boolean
+      error?: string
+      xp_awarded?: number
+      new_total_xp?: number
+      new_rank?: string
+    }>('claim_welcome_bonus', {
+      p_auth_id: user.auth_id,
+    })
+
+    if (!error && data?.success) {
+      return { success: true }
+    }
+
+    const errText = data?.error || error?.message || 'Error desconocido'
+    const isRaceCondition = errText.toLowerCase().includes('perfil no encontrado') ||
+                            errText.toLowerCase().includes('not found')
+    if (isRaceCondition && retriesLeft > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
+      return claimBonus(retriesLeft - 1)
+    }
+
+    return { success: false, error: errText }
+  }
+
   const handleAccept = async () => {
     if (!user?.auth_id) return
     setLoading(true)
-    const { data } = await restRpc<{ success: boolean }>('claim_welcome_bonus', {
-      p_auth_id: user.auth_id,
-    })
+    setErrorMsg(null)
+    const result = await claimBonus()
     setLoading(false)
-    if (data?.success) {
+    if (result.success) {
+      const userKey = user.auth_id
+      const shown = (await localforage.getItem<string[]>(WELCOME_KEY)) ?? []
+      if (!shown.includes(userKey)) {
+        await localforage.setItem(WELCOME_KEY, [...shown, userKey])
+      }
       setIsOpen(false)
       await refreshProfile()
+    } else {
+      setErrorMsg(result.error || 'No se pudo reclamar el bonus. Intenta de nuevo.')
     }
   }
 
@@ -49,12 +86,12 @@ export function WelcomeModal() {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-margin-mobile">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-margin-mobile">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             aria-hidden="true"
           />
           <motion.div
@@ -79,6 +116,11 @@ export function WelcomeModal() {
             <div className="mb-lg">
               <span className="font-display text-3xl text-secondary font-bold">+100 XP</span>
             </div>
+            {errorMsg && (
+              <p className="font-label-sm text-error mb-md" role="alert">
+                {errorMsg}
+              </p>
+            )}
             <Button variant="gold" size="lg" onClick={handleAccept} isLoading={loading} className="w-full">
               ACEPTAR
             </Button>
