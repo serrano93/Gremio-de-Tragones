@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../ui/Button'
-import type { Establishment } from '../../types'
+import { MISSION_REWARDS, canCreateMissionAtRank } from '../../lib/mission-rewards'
+import type { Establishment, Mission } from '../../types'
 
 const offerTypes = [
   { value: 'free_item', label: 'Obsequio' },
@@ -26,23 +27,56 @@ interface MissionFormProps {
     offer_type: string
     is_active: boolean
   } | null
+  readOnlyRewards?: boolean
+  existingMissions?: Array<Pick<Mission, 'required_min_rank'>>
   onSuccess: () => void
 }
 
-export function MissionForm({ establishments, preselectedEstId, editingMission, onSuccess }: MissionFormProps) {
+export function MissionForm({
+  establishments,
+  preselectedEstId,
+  editingMission,
+  readOnlyRewards = false,
+  existingMissions = [],
+  onSuccess,
+}: MissionFormProps) {
   const [form, setForm] = useState({
     establishment_id: editingMission?.establishment_id || preselectedEstId || '',
     title: editingMission?.title || '',
     description: editingMission?.description || '',
-    xp_reward: editingMission?.xp_reward ?? 50,
-    gold_reward: editingMission?.gold_reward ?? 10,
+    xp_reward: editingMission?.xp_reward ?? MISSION_REWARDS.F.xp,
+    gold_reward: editingMission?.gold_reward ?? MISSION_REWARDS.F.gold,
     required_min_rank: editingMission?.required_min_rank || 'F',
     offer_type: editingMission?.offer_type || 'other',
   })
   const [loading, setLoading] = useState(false)
+  const [limitError, setLimitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!readOnlyRewards) return
+    if (editingMission) return
+    const reward = MISSION_REWARDS[form.required_min_rank]
+    if (reward) {
+      setForm((p) => ({ ...p, xp_reward: reward.xp, gold_reward: reward.gold }))
+    }
+  }, [form.required_min_rank, readOnlyRewards, editingMission])
+
+  useEffect(() => {
+    if (editingMission) {
+      setLimitError(null)
+      return
+    }
+    if (!readOnlyRewards) {
+      setLimitError(null)
+      return
+    }
+    const check = canCreateMissionAtRank(existingMissions, form.required_min_rank)
+    setLimitError(check.allowed ? null : check.reason || null)
+  }, [existingMissions, form.required_min_rank, readOnlyRewards, editingMission])
 
   const handleSubmit = async () => {
     if (!form.establishment_id || !form.title) return
+    if (limitError) return
     setLoading(true)
 
     if (editingMission) {
@@ -72,10 +106,19 @@ export function MissionForm({ establishments, preselectedEstId, editingMission, 
         is_active: true,
       })
       setLoading(false)
-      if (error) { console.error(error); return }
+      if (error) {
+        console.error(error)
+        if (error.message?.toLowerCase().includes('límite') || error.message?.toLowerCase().includes('limit')) {
+          setLimitError(error.message)
+        }
+        return
+      }
     }
     onSuccess()
   }
+
+  const reward = MISSION_REWARDS[form.required_min_rank]
+  const isRewardsDisabled = readOnlyRewards
 
   return (
     <div className="space-y-md">
@@ -118,30 +161,6 @@ export function MissionForm({ establishments, preselectedEstId, editingMission, 
                      text-on-surface placeholder:text-outline font-label-lg focus:outline-none focus:border-primary-container resize-none min-h-[48px]"
         />
       </div>
-      <div className="grid grid-cols-2 gap-md">
-        <div>
-          <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Recompensa XP</label>
-          <input
-            type="number"
-            value={form.xp_reward}
-            onChange={(e) => setForm((p) => ({ ...p, xp_reward: Number(e.target.value) }))}
-            min={0}
-            className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
-                       text-on-surface font-label-lg focus:outline-none focus:border-primary-container min-h-[48px]"
-          />
-        </div>
-        <div>
-          <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Recompensa Oro</label>
-          <input
-            type="number"
-            value={form.gold_reward}
-            onChange={(e) => setForm((p) => ({ ...p, gold_reward: Number(e.target.value) }))}
-            min={0}
-            className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
-                       text-on-surface font-label-lg focus:outline-none focus:border-primary-container min-h-[48px]"
-          />
-        </div>
-      </div>
       <div>
         <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Rango mínimo</label>
         <select
@@ -155,6 +174,49 @@ export function MissionForm({ establishments, preselectedEstId, editingMission, 
           ))}
         </select>
       </div>
+      <div className="grid grid-cols-2 gap-md">
+        <div>
+          <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant flex items-center gap-xs">
+            Recompensa XP
+            {isRewardsDisabled && (
+              <span className="font-label-sm text-outline">🔒 Fijo</span>
+            )}
+          </label>
+          <input
+            type="number"
+            value={form.xp_reward}
+            onChange={(e) => setForm((p) => ({ ...p, xp_reward: Number(e.target.value) }))}
+            min={0}
+            disabled={isRewardsDisabled}
+            className={`w-full px-md py-sm border-2 border-outline-variant rounded-lg
+                       font-label-lg focus:outline-none focus:border-primary-container min-h-[48px]
+                       ${isRewardsDisabled ? 'bg-surface text-on-surface-variant cursor-not-allowed' : 'bg-surface-container text-on-surface'}`}
+          />
+        </div>
+        <div>
+          <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant flex items-center gap-xs">
+            Recompensa Oro
+            {isRewardsDisabled && (
+              <span className="font-label-sm text-outline">🔒 Fijo</span>
+            )}
+          </label>
+          <input
+            type="number"
+            value={form.gold_reward}
+            onChange={(e) => setForm((p) => ({ ...p, gold_reward: Number(e.target.value) }))}
+            min={0}
+            disabled={isRewardsDisabled}
+            className={`w-full px-md py-sm border-2 border-outline-variant rounded-lg
+                       font-label-lg focus:outline-none focus:border-primary-container min-h-[48px]
+                       ${isRewardsDisabled ? 'bg-surface text-on-surface-variant cursor-not-allowed' : 'bg-surface-container text-on-surface'}`}
+          />
+        </div>
+      </div>
+      {isRewardsDisabled && reward && (
+        <p className="font-label-sm text-outline">
+          Recompensa fija para rango {form.required_min_rank}: {reward.xp} XP / {reward.gold} oro.
+        </p>
+      )}
       <div>
         <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Tipo de oferta</label>
         <select
@@ -168,7 +230,15 @@ export function MissionForm({ establishments, preselectedEstId, editingMission, 
           ))}
         </select>
       </div>
-      <Button variant="gold" onClick={handleSubmit} isLoading={loading} className="w-full">
+      {limitError && (
+        <div className="rounded-lg border-2 border-error bg-error-container/30 px-md py-sm">
+          <p className="font-label-md text-error flex items-center gap-xs">
+            <span className="material-symbols-outlined text-md">block</span>
+            {limitError}
+          </p>
+        </div>
+      )}
+      <Button variant="gold" onClick={handleSubmit} isLoading={loading} disabled={!!limitError} className="w-full">
         {editingMission ? 'Guardar Cambios' : 'Crear Misión'}
       </Button>
     </div>
