@@ -1,6 +1,6 @@
-import type { AppRole, MissionStatus, OfferType } from '../lib/constants'
+import type { AppRole, MissionStatus, MissionType } from '../lib/constants'
 
-export type { AppRole, MissionStatus, OfferType }
+export type { AppRole, MissionStatus, MissionType }
 
 export interface Profile {
   id: string
@@ -34,7 +34,7 @@ export interface Mission {
   xp_reward: number
   gold_reward: number
   required_min_rank: string
-  offer_type: OfferType
+  mission_type: MissionType
   is_active: boolean
   created_at: string
   establishment?: Pick<Establishment, 'id' | 'name'>

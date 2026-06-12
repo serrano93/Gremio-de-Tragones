@@ -44,14 +44,8 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
         setError(error.message)
         setMissions([])
       } else if (data) {
-        const rankOrder = ['F', 'E', 'D', 'C', 'B', 'A', 'S']
-        const userRankIdx = rankOrder.indexOf(userRank || 'F')
         const arr = Array.isArray(data) ? data : []
-        const filtered = arr.filter((m) => {
-          const reqIdx = rankOrder.indexOf(m.required_min_rank)
-          return reqIdx <= userRankIdx
-        })
-        setMissions(filtered)
+        setMissions(arr)
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
