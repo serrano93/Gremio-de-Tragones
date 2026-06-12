@@ -39,7 +39,9 @@ export function buildGoogleLoginUrl(options: GoogleLoginOptions = {}): string {
 }
 
 export async function startGoogleLogin(options: GoogleLoginOptions = {}): Promise<void> {
-  const url = buildGoogleLoginUrl(options)
+  const useImplicit = isNativePlatform()
+  const opts: GoogleLoginOptions = useImplicit ? { ...options, flowType: 'implicit' } : options
+  const url = buildGoogleLoginUrl(opts)
   if (isNativePlatform()) {
     try {
       const capacitorBrowser = (await import(/* @vite-ignore */ '@capacitor/browser').catch(() => null)) as
@@ -74,6 +76,17 @@ export function parseOAuthFragment(hash: string): OAuthCallbackResult | null {
   const fragment = hash.startsWith('#') ? hash.slice(1) : hash
   if (fragment.startsWith('/')) return null
   const params = new URLSearchParams(fragment)
+  return parseTokensFromParams(params)
+}
+
+export function parseOAuthSearch(search: string): OAuthCallbackResult | null {
+  if (!search || search.length < 2) return null
+  const trimmed = search.startsWith('?') ? search.slice(1) : search
+  const params = new URLSearchParams(trimmed)
+  return parseTokensFromParams(params)
+}
+
+function parseTokensFromParams(params: URLSearchParams): OAuthCallbackResult | null {
   const access_token = params.get('access_token')
   const refresh_token = params.get('refresh_token')
   if (!access_token || !refresh_token) return null

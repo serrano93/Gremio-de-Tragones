@@ -29,7 +29,10 @@ export default function AuthCallbackPage() {
       const hash = location.hash || ''
       const search = location.search || ''
 
-      const hasTokens = hash.includes('access_token=') || (search && new URLSearchParams(search).get('fragment')?.includes('access_token='))
+      const hasTokens =
+        hash.includes('access_token=') ||
+        search.includes('access_token=') ||
+        (search && new URLSearchParams(search).get('fragment')?.includes('access_token='))
 
       if (!hasTokens) {
         setStatus('error')
