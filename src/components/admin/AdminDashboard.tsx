@@ -340,7 +340,7 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
                     <p className="font-label-sm text-outline">
                       {mission.is_active ? 'Activa' : 'Inactiva'}
                       {' | '}XP: {mission.xp_reward} | Oro: {mission.gold_reward}
-                      {mission.offer_type && ` | ${mission.offer_type.replace('_', ' ')}`}
+                      {mission.mission_type && ` | ${mission.mission_type}`}
                       {' | '}Mín: {mission.required_min_rank}
                       {(mission as any).establishments?.name && ` | ${(mission as any).establishments.name}`}
                     </p>

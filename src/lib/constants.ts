@@ -36,8 +36,29 @@ export type AppRole = (typeof ROLES)[number]
 export const MISSION_STATUSES = ['pending', 'completed', 'verified'] as const
 export type MissionStatus = (typeof MISSION_STATUSES)[number]
 
-export const OFFER_TYPES = ['free_item', 'discount', 'exclusive', 'other'] as const
-export type OfferType = (typeof OFFER_TYPES)[number]
+export const MISSION_TYPES = ['bebida', 'comida', 'visita', 'reto'] as const
+export type MissionType = (typeof MISSION_TYPES)[number]
+
+export const MISSION_TYPE_LABELS: Record<string, string> = {
+  bebida: 'Bebida',
+  comida: 'Comida',
+  visita: 'Visita',
+  reto: 'Reto',
+}
+
+export const MISSION_TYPE_ICONS: Record<string, string> = {
+  bebida: 'local_bar',
+  comida: 'restaurant',
+  visita: 'storefront',
+  reto: 'emoji_events',
+}
+
+export const MISSION_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  bebida: { bg: 'bg-amber-900/40', text: 'text-amber-300', border: 'border-amber-700/50' },
+  comida: { bg: 'bg-orange-900/40', text: 'text-orange-300', border: 'border-orange-700/50' },
+  visita: { bg: 'bg-emerald-900/40', text: 'text-emerald-300', border: 'border-emerald-700/50' },
+  reto:   { bg: 'bg-purple-900/40', text: 'text-purple-300', border: 'border-purple-700/50' },
+}
 
 export const QR_EXPIRY_MS = 2 * 60 * 1000
 

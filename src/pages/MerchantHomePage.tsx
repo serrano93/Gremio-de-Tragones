@@ -472,7 +472,7 @@ export default function MerchantHomePage() {
             xp_reward: editingMission.xp_reward,
             gold_reward: editingMission.gold_reward,
             required_min_rank: editingMission.required_min_rank,
-            offer_type: editingMission.offer_type,
+            mission_type: editingMission.mission_type,
             is_active: editingMission.is_active,
           } : null}
           readOnlyRewards={user.role === 'merchant'}

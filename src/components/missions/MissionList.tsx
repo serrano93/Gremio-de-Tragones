@@ -6,6 +6,7 @@ interface MissionListProps {
   missions: Mission[]
   isLoading: boolean
   isGuest: boolean
+  userRank: string
   error?: string | null
   onRetry?: () => void
   getMissionStatus: (missionId: string) => string | null
@@ -18,6 +19,7 @@ export function MissionList({
   missions,
   isLoading,
   isGuest,
+  userRank,
   error,
   onRetry,
   getMissionStatus,
@@ -93,16 +95,15 @@ export function MissionList({
         </motion.div>
       ) : (
         <AnimatePresence mode="popLayout">
-          {filtered.map((mission, i) => (
+          {filtered.map((mission) => (
             <MissionCard
               key={mission.id}
               mission={mission}
               status={getMissionStatus(mission.id)}
               isGuest={isGuest}
+              userRank={userRank}
               isCompleted={getMissionStatus(mission.id) === 'verified'}
               onOpenQR={onOpenQR}
-              difficulty={i % 3 === 0 ? 'high' : i % 3 === 1 ? 'moderate' : 'low'}
-              rotate={`${(i % 5 - 2) * 0.5}deg`}
             />
           ))}
         </AnimatePresence>

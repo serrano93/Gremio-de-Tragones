@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Button } from '../ui/Button'
 import { MISSION_REWARDS, canCreateMissionAtRank } from '../../lib/mission-rewards'
+import { MISSION_TYPES, MISSION_TYPE_LABELS, MISSION_TYPE_ICONS } from '../../lib/constants'
 import type { Establishment, Mission } from '../../types'
 
 const offerTypes = [
@@ -24,7 +25,7 @@ interface MissionFormProps {
     xp_reward: number
     gold_reward: number
     required_min_rank: string
-    offer_type: string
+    mission_type: string
     is_active: boolean
   } | null
   readOnlyRewards?: boolean
@@ -47,7 +48,7 @@ export function MissionForm({
     xp_reward: editingMission?.xp_reward ?? MISSION_REWARDS.F.xp,
     gold_reward: editingMission?.gold_reward ?? MISSION_REWARDS.F.gold,
     required_min_rank: editingMission?.required_min_rank || 'F',
-    offer_type: editingMission?.offer_type || 'other',
+    mission_type: editingMission?.mission_type || 'reto',
   })
   const [loading, setLoading] = useState(false)
   const [limitError, setLimitError] = useState<string | null>(null)
@@ -94,7 +95,7 @@ export function MissionForm({
             xp_reward: form.xp_reward,
             gold_reward: form.gold_reward,
             required_min_rank: form.required_min_rank,
-            offer_type: form.offer_type,
+            mission_type: form.mission_type,
           })
           .eq('id', editingMission.id)
         if (error) {
@@ -111,7 +112,7 @@ export function MissionForm({
           xp_reward: form.xp_reward,
           gold_reward: form.gold_reward,
           required_min_rank: form.required_min_rank,
-          offer_type: form.offer_type,
+          mission_type: form.mission_type,
           is_active: true,
         })
         if (error) {
@@ -231,17 +232,24 @@ export function MissionForm({
         </p>
       )}
       <div>
-        <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Tipo de oferta</label>
-        <select
-          value={form.offer_type}
-          onChange={(e) => setForm((p) => ({ ...p, offer_type: e.target.value as any }))}
-          className="w-full px-md py-sm bg-surface-container border-2 border-outline-variant rounded-lg
-                     text-on-surface font-label-lg focus:outline-none focus:border-primary-container min-h-[48px]"
-        >
-          {offerTypes.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
+        <label className="block font-label-lg text-label-lg mb-xs text-on-surface-variant">Tipo de misión</label>
+        <div className="grid grid-cols-2 gap-sm">
+          {MISSION_TYPES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setForm((p) => ({ ...p, mission_type: t }))}
+              className={`flex items-center justify-center gap-sm px-md py-sm rounded-lg border-2 min-h-[48px] font-label-lg text-label-lg transition-colors ${
+                form.mission_type === t
+                  ? 'bg-primary-container text-on-primary-container border-primary'
+                  : 'bg-surface-container text-on-surface-variant border-outline-variant hover:border-primary/50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">{MISSION_TYPE_ICONS[t]}</span>
+              <span>{MISSION_TYPE_LABELS[t]}</span>
+            </button>
           ))}
-        </select>
+        </div>
       </div>
       {limitError && (
         <div className="rounded-lg border-2 border-error bg-error-container/30 px-md py-sm">

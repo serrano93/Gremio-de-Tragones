@@ -44,6 +44,7 @@ export default function MissionsPage() {
           missions={missions}
           isLoading={isLoading}
           isGuest={isGuest}
+          userRank={rank}
           error={error}
           onRetry={refetch}
           getMissionStatus={getMissionStatus}

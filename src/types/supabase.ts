@@ -86,7 +86,7 @@ export interface Database {
           xp_reward: number
           gold_reward: number
           required_min_rank: string
-          offer_type: 'free_item' | 'discount' | 'exclusive' | 'other'
+          mission_type: 'bebida' | 'comida' | 'visita' | 'reto'
           is_active: boolean
           created_at: string
           updated_at: string
@@ -99,7 +99,7 @@ export interface Database {
           xp_reward?: number
           gold_reward?: number
           required_min_rank?: string
-          offer_type?: 'free_item' | 'discount' | 'exclusive' | 'other'
+          mission_type?: 'bebida' | 'comida' | 'visita' | 'reto'
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -112,7 +112,7 @@ export interface Database {
           xp_reward?: number
           gold_reward?: number
           required_min_rank?: string
-          offer_type?: 'free_item' | 'discount' | 'exclusive' | 'other'
+          mission_type?: 'bebida' | 'comida' | 'visita' | 'reto'
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -262,3 +262,4 @@ export interface Database {
     }
   }
 }
+
