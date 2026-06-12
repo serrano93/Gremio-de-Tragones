@@ -85,19 +85,36 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   }
 
   const handleDeletePromo = async (promo: PromoCode) => {
-    await supabase.from('promo_codes').delete().eq('id', promo.id)
+    if (!confirm(`¿Eliminar el código "${promo.code}"?`)) return
+    const { error } = await supabase.from('promo_codes').delete().eq('id', promo.id)
+    if (error) {
+      console.error('[AdminDashboard] delete promo error:', error)
+      toast('error', `Error al eliminar: ${error.message}`)
+      return
+    }
     toast('success', 'Código eliminado')
     fetchPromoCodes()
   }
 
   const handleToggleMissionActive = async (mission: Mission) => {
-    await supabase.from('missions').update({ is_active: !mission.is_active }).eq('id', mission.id)
+    const { error } = await supabase.from('missions').update({ is_active: !mission.is_active }).eq('id', mission.id)
+    if (error) {
+      console.error('[AdminDashboard] toggle mission error:', error)
+      toast('error', `Error al cambiar estado: ${error.message}`)
+      return
+    }
     toast('success', mission.is_active ? 'Misión desactivada' : 'Misión activada')
     fetchMissions()
   }
 
   const handleDeleteMission = async (mission: Mission) => {
-    await supabase.from('missions').delete().eq('id', mission.id)
+    if (!confirm(`¿Eliminar la misión "${mission.title}"?`)) return
+    const { error } = await supabase.from('missions').delete().eq('id', mission.id)
+    if (error) {
+      console.error('[AdminDashboard] delete mission error:', error)
+      toast('error', `Error al eliminar: ${error.message}`)
+      return
+    }
     toast('success', 'Misión eliminada')
     fetchMissions()
   }
@@ -113,13 +130,24 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
   }
 
   const handleToggleOfferActive = async (offer: Offer) => {
-    await supabase.from('offers').update({ is_active: !offer.is_active }).eq('id', offer.id)
+    const { error } = await supabase.from('offers').update({ is_active: !offer.is_active }).eq('id', offer.id)
+    if (error) {
+      console.error('[AdminDashboard] toggle offer error:', error)
+      toast('error', `Error al cambiar estado: ${error.message}`)
+      return
+    }
     toast('success', offer.is_active ? 'Oferta desactivada' : 'Oferta activada')
     fetchOffers()
   }
 
   const handleDeleteOffer = async (offer: Offer) => {
-    await supabase.from('offers').delete().eq('id', offer.id)
+    if (!confirm(`¿Eliminar la oferta "${offer.title}"?`)) return
+    const { error } = await supabase.from('offers').delete().eq('id', offer.id)
+    if (error) {
+      console.error('[AdminDashboard] delete offer error:', error)
+      toast('error', `Error al eliminar: ${error.message}`)
+      return
+    }
     toast('success', 'Oferta eliminada')
     fetchOffers()
   }
