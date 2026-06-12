@@ -42,11 +42,28 @@ const Layout = ({ children }: { children: ReactNode }) => (
 )
 
 function AdminRoute({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, isLoading } = useAuth()
+  if (isLoading) {
+    return <PageLoader />
+  }
   if (!user) {
     return <Navigate to="/profile" replace />
   }
   if (user.role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
+  return children
+}
+
+function MerchantRoute({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth()
+  if (isLoading) {
+    return <PageLoader />
+  }
+  if (!user) {
+    return <Navigate to="/profile" replace />
+  }
+  if (user.role !== 'merchant' && user.role !== 'admin') {
     return <Navigate to="/" replace />
   }
   return children
@@ -66,7 +83,7 @@ export function AppRouter() {
             <Route path="/scan" element={<Layout><ScanPage /></Layout>} />
             <Route path="/admin" element={<AdminRoute><Layout><AdminPage /></Layout></AdminRoute>} />
             <Route path="/login" element={<Layout><LoginPage /></Layout>} />
-            <Route path="/merchant" element={<Layout><MerchantHomePage /></Layout>} />
+            <Route path="/merchant" element={<MerchantRoute><Layout><MerchantHomePage /></Layout></MerchantRoute>} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
           </Routes>
         </Suspense>
