@@ -75,14 +75,36 @@ export function MissionForm({
   }, [existingMissions, form.required_min_rank, readOnlyRewards, editingMission])
 
   const handleSubmit = async () => {
-    if (!form.establishment_id || !form.title) return
+    if (!form.establishment_id || !form.title) {
+      setLimitError('Selecciona un establecimiento y un título.')
+      return
+    }
     if (limitError) return
     setLoading(true)
+    setLimitError(null)
 
-    if (editingMission) {
-      const { error } = await supabase
-        .from('missions')
-        .update({
+    try {
+      if (editingMission) {
+        const { error } = await supabase
+          .from('missions')
+          .update({
+            establishment_id: form.establishment_id,
+            title: form.title,
+            description: form.description || null,
+            xp_reward: form.xp_reward,
+            gold_reward: form.gold_reward,
+            required_min_rank: form.required_min_rank,
+            offer_type: form.offer_type,
+          })
+          .eq('id', editingMission.id)
+        if (error) {
+          console.error('[MissionForm] update error:', error)
+          setLimitError(error.message || 'Error al actualizar la misión.')
+          setLoading(false)
+          return
+        }
+      } else {
+        const { error } = await supabase.from('missions').insert({
           establishment_id: form.establishment_id,
           title: form.title,
           description: form.description || null,
@@ -90,31 +112,22 @@ export function MissionForm({
           gold_reward: form.gold_reward,
           required_min_rank: form.required_min_rank,
           offer_type: form.offer_type,
+          is_active: true,
         })
-        .eq('id', editingMission.id)
-      setLoading(false)
-      if (error) { console.error(error); return }
-    } else {
-      const { error } = await supabase.from('missions').insert({
-        establishment_id: form.establishment_id,
-        title: form.title,
-        description: form.description || null,
-        xp_reward: form.xp_reward,
-        gold_reward: form.gold_reward,
-        required_min_rank: form.required_min_rank,
-        offer_type: form.offer_type,
-        is_active: true,
-      })
-      setLoading(false)
-      if (error) {
-        console.error(error)
-        if (error.message?.toLowerCase().includes('límite') || error.message?.toLowerCase().includes('limit')) {
-          setLimitError(error.message)
+        if (error) {
+          console.error('[MissionForm] insert error:', error)
+          setLimitError(error.message || 'Error al crear la misión.')
+          setLoading(false)
+          return
         }
-        return
       }
+      setLoading(false)
+      onSuccess()
+    } catch (err: any) {
+      console.error('[MissionForm] unexpected error:', err)
+      setLimitError(err?.message || 'Error inesperado.')
+      setLoading(false)
     }
-    onSuccess()
   }
 
   const reward = MISSION_REWARDS[form.required_min_rank]

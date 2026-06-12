@@ -17,6 +17,21 @@ export function getSupabase(): SupabaseClient {
         detectSessionInUrl: false,
         flowType: 'implicit',
       },
+      accessToken: async () => {
+        if (typeof window === 'undefined') return null
+        try {
+          const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
+          if (!raw) return null
+          const session = JSON.parse(raw) as StoredSession
+          if (!session?.access_token) return null
+          if (session.expires_at && session.expires_at * 1000 < Date.now()) {
+            return null
+          }
+          return session.access_token
+        } catch {
+          return null
+        }
+      },
     })
   }
   return supabaseInstance
