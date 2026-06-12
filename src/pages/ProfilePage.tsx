@@ -191,9 +191,12 @@ export default function ProfilePage() {
   ): Promise<void> => {
     const WELCOME_KEY = 'welcome_shown'
     const shown = (await localforage.getItem<string[]>(WELCOME_KEY)) ?? []
-    if (shown.includes(authId)) return
+    if (shown.includes(authId)) {
+      console.log('[WelcomeBonus] already shown for this user, skipping')
+      return
+    }
 
-    const claimWithRetry = async (retries: number): Promise<boolean> => {
+    const claimWithRetry = async (retries: number): Promise<{ ok: boolean; reason?: string }> => {
       const { data, error } = await restRpc<{
         success: boolean
         error?: string
@@ -203,20 +206,26 @@ export default function ProfilePage() {
       }>('claim_welcome_bonus', {
         p_auth_id: authId,
       })
-      if (!error && data?.success) return true
+      if (!error && data?.success) return { ok: true }
       const errText = data?.error || error?.message || ''
       const isRace = errText.toLowerCase().includes('perfil no encontrado') || errText.toLowerCase().includes('not found')
       if (isRace && retries > 0) {
+        console.warn('[WelcomeBonus] profile not found, retrying...', { retriesLeft: retries })
         await new Promise((r) => setTimeout(r, 800))
         return claimWithRetry(retries - 1)
       }
-      return false
+      return { ok: false, reason: errText }
     }
 
-    const success = await claimWithRetry(3)
-    if (success) {
+    console.log('[WelcomeBonus] attempting to claim for auth_id:', authId)
+    const result = await claimWithRetry(3)
+    if (result.ok) {
       await localforage.setItem(WELCOME_KEY, [...shown, authId])
       await refreshProfile()
+      toast('success', '¡+100 XP de bienvenida al Gremio!')
+      console.log('[WelcomeBonus] claimed successfully')
+    } else {
+      console.log('[WelcomeBonus] not claimed:', result.reason)
     }
   }
 
