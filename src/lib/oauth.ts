@@ -22,6 +22,7 @@ export function getOAuthCallbackUrl(): string {
 export interface GoogleLoginOptions {
   redirectTo?: string
   scopes?: string
+  flowType?: 'pkce' | 'implicit'
 }
 
 export function buildGoogleLoginUrl(options: GoogleLoginOptions = {}): string {
@@ -29,6 +30,7 @@ export function buildGoogleLoginUrl(options: GoogleLoginOptions = {}): string {
   const params = new URLSearchParams({
     provider: 'google',
     redirect_to: callback,
+    flow_type: options.flowType || 'pkce',
   })
   if (options.scopes) {
     params.set('scopes', options.scopes)
@@ -122,10 +124,17 @@ export function saveOAuthSession(result: OAuthCallbackResult): void {
   localStorage.setItem('sb-xzgsjedajlyesnzciwva-auth-token', JSON.stringify(session))
 }
 
-export function getOAuthErrorFromUrl(search: string): string | null {
+export function getOAuthErrorFromUrl(search: string): {
+  error: string | null
+  code: string | null
+  description: string | null
+} {
   const params = new URLSearchParams(search)
-  const error = params.get('error') || params.get('error_description')
-  return error
+  return {
+    error: params.get('error'),
+    code: params.get('error_code'),
+    description: params.get('error_description'),
+  }
 }
 
 export const OAUTH_DEBUG = {
