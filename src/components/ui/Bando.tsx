@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './Button'
 
@@ -10,7 +9,6 @@ interface BandoProps {
 }
 
 export function Bando({ isGuest }: BandoProps) {
-  const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
@@ -29,7 +27,6 @@ export function Bando({ isGuest }: BandoProps) {
       window.localStorage.setItem(BANDO_SEEN_KEY, '1')
     }
     setIsOpen(false)
-    navigate('/profile', { replace: true })
   }
 
   return (

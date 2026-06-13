@@ -20,7 +20,7 @@ export function useMissions(userRank: string, profileId: string | null, isGuest:
 
   const fetchMissions = useCallback(async () => {
     if (!mounted.current) return
-    if (isGuest || !profileId) {
+    if (!profileId && !isGuest) {
       setMissions([])
       setIsLoading(false)
       return
