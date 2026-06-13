@@ -1,16 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './Button'
+
+const BANDO_SEEN_KEY = 'gremio_bando_seen'
 
 interface BandoProps {
   isGuest: boolean
 }
 
 export function Bando({ isGuest }: BandoProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const navigate = useNavigate()
+  const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isGuest) return
+    if (typeof window === 'undefined') return
+    const seen = window.localStorage.getItem(BANDO_SEEN_KEY)
+    if (!seen) setIsOpen(true)
+  }, [isGuest])
 
   if (!isGuest) {
     return null
+  }
+
+  const handleClose = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(BANDO_SEEN_KEY, '1')
+    }
+    setIsOpen(false)
+    navigate('/profile', { replace: true })
   }
 
   return (
@@ -90,7 +109,7 @@ export function Bando({ isGuest }: BandoProps) {
                   >
                     <Button
                       variant="stone"
-                      onClick={() => setIsOpen(false)}
+                      onClick={handleClose}
                       className="w-full"
                     >
                       Enterrar el Bando

@@ -75,7 +75,8 @@ export function AppRouter() {
       <BrowserRouter>
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/" element={<Layout><HomePage /></Layout>} />
+            <Route path="/" element={<Navigate to="/profile" replace />} />
+            <Route path="/home" element={<Layout><HomePage /></Layout>} />
             <Route path="/missions" element={<Layout><MissionsPage /></Layout>} />
             <Route path="/guild" element={<Layout><GuildPage /></Layout>} />
             <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
