@@ -6,6 +6,7 @@ import { useGuestSync } from '../hooks/useGuestSync'
 import { RankBadge } from '../components/guild/RankBadge'
 import { StoneCard, GoldCard, Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { Bando } from '../components/ui/Bando'
 import { useToast } from '../components/ui/Toast'
 import { supabaseUrlValue, supabaseAnonKeyValue, AUTH_STORAGE_KEY, type StoredSession, restRpc } from '../lib/supabase'
 import type localforage from 'localforage'
@@ -364,7 +365,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="space-y-lg">
+    <>
+      <Bando isGuest={isGuest} />
+      <div className="space-y-lg">
       <div>
         <h1 className="font-headline-lg text-headline-lg text-primary">Baúl</h1>
         <p className="font-label-sm text-outline">Tu identidad en el Reino</p>
@@ -469,5 +472,6 @@ export default function ProfilePage() {
         Abandonar el Gremio
       </Button>
     </div>
+    </>
   )
 }
