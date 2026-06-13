@@ -274,6 +274,8 @@ export default function ProfilePage() {
 
   if (isGuest) {
     return (
+      <>
+      <Bando isGuest={isGuest} />
       <div className="space-y-lg">
         <div>
           <h1 className="font-headline-lg text-headline-lg text-primary">Baúl</h1>
@@ -355,14 +357,15 @@ export default function ProfilePage() {
               </Button>
             </div>
 
-            <p className="font-label-sm text-outline text-center">
-              Al registrarte, tu progreso de invitado se sincronizará. Si tienes 100+ XP, obtendrás Rango E.
-            </p>
-          </div>
-        </Card>
-      </div>
-    )
-  }
+             <p className="font-label-sm text-outline text-center">
+               Al registrarte, tu progreso de invitado se sincronizará. Si tienes 100+ XP, obtendrás Rango E.
+             </p>
+           </div>
+         </Card>
+       </div>
+      </>
+     )
+   }
 
   return (
     <>
