@@ -15,6 +15,10 @@ const AdminPage = lazy(() => import('../../pages/AdminPage'))
 const LoginPage = lazy(() => import('../../pages/LoginPage'))
 const MerchantHomePage = lazy(() => import('../../pages/MerchantHomePage'))
 const AuthCallbackPage = lazy(() => import('../../pages/AuthCallbackPage'))
+const RoulettePage = lazy(() => import('../../pages/RoulettePage'))
+const DragonFlightPage = lazy(() => import('../../pages/DragonFlightPage'))
+const DragonHoardPage = lazy(() => import('../../pages/DragonHoardPage'))
+const GamesPage = lazy(() => import('../../pages/GamesPage'))
 
 function PageLoader() {
   return (
@@ -86,6 +90,10 @@ export function AppRouter() {
             <Route path="/login" element={<Layout><LoginPage /></Layout>} />
             <Route path="/merchant" element={<MerchantRoute><Layout><MerchantHomePage /></Layout></MerchantRoute>} />
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/games" element={<Layout><GamesPage /></Layout>} />
+            <Route path="/games/roulette" element={<Layout><RoulettePage /></Layout>} />
+            <Route path="/games/flight" element={<Layout><DragonFlightPage /></Layout>} />
+            <Route path="/games/hoard" element={<Layout><DragonHoardPage /></Layout>} />
           </Routes>
         </Suspense>
       </BrowserRouter>

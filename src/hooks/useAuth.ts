@@ -300,9 +300,17 @@ export function useAuth() {
 }
 
 export async function processOAuthCallback(search: string, hash: string): Promise<Profile | null> {
-  const { parseOAuthFragment, saveOAuthSession } = await import('../lib/oauth')
-  const fragment = hash || (search && new URLSearchParams(search).get('fragment')) || ''
-  const result = parseOAuthFragment(fragment)
+  const { parseOAuthFragment, parseOAuthSearch, saveOAuthSession } = await import('../lib/oauth')
+  let result = parseOAuthFragment(hash)
+  if (!result) {
+    result = parseOAuthSearch(search)
+  }
+  if (!result) {
+    const fragmentFromSearch = search && new URLSearchParams(search).get('fragment')
+    if (fragmentFromSearch) {
+      result = parseOAuthFragment(fragmentFromSearch)
+    }
+  }
   if (!result) return null
 
   saveOAuthSession(result)

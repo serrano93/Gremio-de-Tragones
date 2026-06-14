@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { StoneCard } from '../components/ui/Card'
 import { useToast } from '../components/ui/Toast'
 import { processOAuthCallback } from '../hooks/useAuth'
-import { getOAuthErrorFromUrl, isNativePlatform } from '../lib/oauth'
+import { getOAuthErrorFromUrl, isNativePlatform, getGoogleErrorHint } from '../lib/oauth'
 
 export default function AuthCallbackPage() {
   const navigate = useNavigate()
@@ -11,22 +11,28 @@ export default function AuthCallbackPage() {
   const { toast } = useToast()
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
     const process = async () => {
-      const errorParam = getOAuthErrorFromUrl(location.search)
-      if (errorParam) {
+      const errInfo = getOAuthErrorFromUrl(location.search)
+      if (errInfo.error) {
         setStatus('error')
-        setErrorMsg(errorParam)
+        setErrorCode(errInfo.code)
+        const friendly = getGoogleErrorHint(errInfo.code || errInfo.description || errInfo.error) || errInfo.description || errInfo.error
+        setErrorMsg(friendly)
         return
       }
 
       const hash = location.hash || ''
       const search = location.search || ''
 
-      const hasTokens = hash.includes('access_token=') || (search && new URLSearchParams(search).get('fragment')?.includes('access_token='))
+      const hasTokens =
+        hash.includes('access_token=') ||
+        search.includes('access_token=') ||
+        (search && new URLSearchParams(search).get('fragment')?.includes('access_token='))
 
       if (!hasTokens) {
         setStatus('error')
@@ -91,7 +97,12 @@ export default function AuthCallbackPage() {
               error
             </span>
             <h2 className="font-title-lg text-title-lg text-error mb-sm">Error de autenticación</h2>
-            <p className="font-label-lg text-label-lg text-outline mb-lg">{errorMsg}</p>
+            <p className="font-label-lg text-label-lg text-outline mb-md">{errorMsg}</p>
+            {errorCode && (
+              <p className="font-label-sm text-outline mb-lg" style={{ fontFamily: 'monospace' }}>
+                Código: {errorCode}
+              </p>
+            )}
             <button
               onClick={() => navigate('/profile', { replace: true })}
               className="px-lg py-md bg-primary text-on-primary rounded-xl font-label-lg"

@@ -22,6 +22,7 @@ export function getOAuthCallbackUrl(): string {
 export interface GoogleLoginOptions {
   redirectTo?: string
   scopes?: string
+  flowType?: 'pkce' | 'implicit'
 }
 
 export function buildGoogleLoginUrl(options: GoogleLoginOptions = {}): string {
@@ -29,6 +30,7 @@ export function buildGoogleLoginUrl(options: GoogleLoginOptions = {}): string {
   const params = new URLSearchParams({
     provider: 'google',
     redirect_to: callback,
+    flow_type: options.flowType || 'pkce',
   })
   if (options.scopes) {
     params.set('scopes', options.scopes)
@@ -37,7 +39,9 @@ export function buildGoogleLoginUrl(options: GoogleLoginOptions = {}): string {
 }
 
 export async function startGoogleLogin(options: GoogleLoginOptions = {}): Promise<void> {
-  const url = buildGoogleLoginUrl(options)
+  const useImplicit = isNativePlatform()
+  const opts: GoogleLoginOptions = useImplicit ? { ...options, flowType: 'implicit' } : options
+  const url = buildGoogleLoginUrl(opts)
   if (isNativePlatform()) {
     try {
       const capacitorBrowser = (await import(/* @vite-ignore */ '@capacitor/browser').catch(() => null)) as
@@ -47,7 +51,7 @@ export async function startGoogleLogin(options: GoogleLoginOptions = {}): Promis
         await capacitorBrowser.Browser.open({
           url,
           windowName: '_self',
-          presentationStyle: 'popover',
+          presentationStyle: 'fullscreen',
         })
         return
       }
@@ -72,6 +76,17 @@ export function parseOAuthFragment(hash: string): OAuthCallbackResult | null {
   const fragment = hash.startsWith('#') ? hash.slice(1) : hash
   if (fragment.startsWith('/')) return null
   const params = new URLSearchParams(fragment)
+  return parseTokensFromParams(params)
+}
+
+export function parseOAuthSearch(search: string): OAuthCallbackResult | null {
+  if (!search || search.length < 2) return null
+  const trimmed = search.startsWith('?') ? search.slice(1) : search
+  const params = new URLSearchParams(trimmed)
+  return parseTokensFromParams(params)
+}
+
+function parseTokensFromParams(params: URLSearchParams): OAuthCallbackResult | null {
   const access_token = params.get('access_token')
   const refresh_token = params.get('refresh_token')
   if (!access_token || !refresh_token) return null
@@ -126,10 +141,17 @@ export function saveOAuthSession(result: OAuthCallbackResult): void {
   localStorage.setItem('sb-xzgsjedajlyesnzciwva-auth-token', JSON.stringify(session))
 }
 
-export function getOAuthErrorFromUrl(search: string): string | null {
+export function getOAuthErrorFromUrl(search: string): {
+  error: string | null
+  code: string | null
+  description: string | null
+} {
   const params = new URLSearchParams(search)
-  const error = params.get('error') || params.get('error_description')
-  return error
+  return {
+    error: params.get('error'),
+    code: params.get('error_code'),
+    description: params.get('error_description'),
+  }
 }
 
 const GOOGLE_CLIENT_ID = '266112995901-e5tqa03g7rgte39bjnr8b5u3v4l5jl6e.apps.googleusercontent.com'

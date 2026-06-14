@@ -49,3 +49,41 @@ if ('serviceWorker' in navigator) {
     })
   })
 }
+
+// Capacitor deep link handler — routes com.gremio.tragones:// URLs to the WebView
+async function setupCapacitorDeepLink() {
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor
+  if (!cap?.isNativePlatform?.()) return
+
+  try {
+    const { App: CapApp } = await import('@capacitor/app')
+    await CapApp.addListener('appUrlOpen', (event: { url: string }) => {
+      console.log('[DeepLink] appUrlOpen received:', event.url)
+      const url = event.url
+      if (url.startsWith('com.gremio.tragones://')) {
+        const path = url.replace('com.gremio.tragones://', '').replace(/\/+$/, '')
+        const target = `/${path || ''}${url.includes('?') ? url.substring(url.indexOf('?')) : ''}`
+        console.log('[DeepLink] navigating WebView to:', target)
+        // Close the in-app Browser if it's open (so the WebView is visible)
+        import('@capacitor/browser')
+          .then(({ Browser }) => Browser.close().catch(() => {}))
+          .catch(() => {})
+        // Navigate the WebView to the auth callback route
+        window.location.assign(target)
+      }
+    })
+
+    const launchUrl = await CapApp.getLaunchUrl()
+    if (launchUrl?.url && launchUrl.url.startsWith('com.gremio.tragones://')) {
+      console.log('[DeepLink] launchUrl:', launchUrl.url)
+      const path = launchUrl.url.replace('com.gremio.tragones://', '').replace(/\/+$/, '')
+      const target = `/${path || ''}${launchUrl.url.includes('?') ? launchUrl.url.substring(launchUrl.url.indexOf('?')) : ''}`
+      console.log('[DeepLink] navigating from launch to:', target)
+      setTimeout(() => window.location.assign(target), 100)
+    }
+  } catch (err) {
+    console.warn('[DeepLink] @capacitor/app not available:', err)
+  }
+}
+
+setupCapacitorDeepLink()
