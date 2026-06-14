@@ -9,6 +9,7 @@ localforage.config({
 export interface GuestProgress {
   guestId: string
   xp: number
+  gold: number
   completedMissions: string[]
   createdAt: string
 }
@@ -27,6 +28,7 @@ export async function getOrCreateGuestProfile(): Promise<GuestProgress> {
   const profile: GuestProgress = {
     guestId: generateGuestId(),
     xp: 0,
+    gold: 0,
     completedMissions: [],
     createdAt: new Date().toISOString(),
   }

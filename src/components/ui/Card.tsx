@@ -39,9 +39,11 @@ export function GoldCard({ children, className = '' }: { children: ReactNode; cl
   )
 }
 
-export function StoneCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function StoneCard({ children, className = '', hover = false }: { children: ReactNode; className?: string; hover?: boolean }) {
   return (
-    <div className={`stone-block p-md flex flex-col items-center justify-center ${className}`}>
+    <div
+      className={`stone-block p-md flex flex-col items-center justify-center ${hover ? 'hover:border-primary/30 transition-all duration-200' : ''} ${className}`}
+    >
       {children}
     </div>
   )
