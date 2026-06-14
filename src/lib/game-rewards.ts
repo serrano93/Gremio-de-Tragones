@@ -27,15 +27,13 @@ export const ROULETTE_RESULTS: RouletteResult[] = [
 
 export const ROULETTE_SPIN_COST = 10
 
-export const ROULETTE_COOLDOWN_MS = 5 * 60 * 1000
+export const ROULETTE_COOLDOWN_MS = 24 * 60 * 60 * 1000
 
-// Dragon's Flight: 5 XP por punto, 1 oro cada 5 puntos
-export const FLIGHT_XP_PER_POINT = 5
+// Dragon's Flight: solo oro (sin XP), 1 oro cada 5 puntos, 10 oro por partida
 export const FLIGHT_GOLD_PER_5_POINTS = 1
-export const FLIGHT_BONUS_50_XP = 50
-export const FLIGHT_BONUS_50_GOLD = 200
-export const FLIGHT_BONUS_100_XP = 200
-export const FLIGHT_BONUS_100_GOLD = 1000
+export const FLIGHT_ENTRY_COST = 10
+export const FLIGHT_BONUS_50_GOLD = 10
+export const FLIGHT_BONUS_500_GOLD = 100
 
 // Dragon's Hoard: idle game con upgrades
 export const HOARD_LEVELS: Array<{ level: number; cost: number; goldPerMin: number; label: string }> = [
@@ -49,18 +47,14 @@ export const HOARD_LEVELS: Array<{ level: number; cost: number; goldPerMin: numb
 export const HOARD_MAX_OFFLINE_MS = 12 * 60 * 60 * 1000
 
 export function calculateFlightReward(score: number): { xp: number; gold: number } {
-  const xp = score * FLIGHT_XP_PER_POINT
   const gold = Math.floor(score / 5) * FLIGHT_GOLD_PER_5_POINTS
-  let bonusXp = 0
   let bonusGold = 0
-  if (score >= 100) {
-    bonusXp = FLIGHT_BONUS_100_XP
-    bonusGold = FLIGHT_BONUS_100_GOLD
+  if (score >= 500) {
+    bonusGold = FLIGHT_BONUS_500_GOLD
   } else if (score >= 50) {
-    bonusXp = FLIGHT_BONUS_50_XP
     bonusGold = FLIGHT_BONUS_50_GOLD
   }
-  return { xp: xp + bonusXp, gold: gold + bonusGold }
+  return { xp: 0, gold: gold + bonusGold }
 }
 
 export function pickRouletteResult(): RouletteResult {

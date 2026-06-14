@@ -12,6 +12,8 @@ export default function RoulettePage() {
   const {
     spinning,
     lastResult,
+    lastSpinIndex,
+    currentSpinIndex,
     history,
     highscore,
     userGold,
@@ -19,24 +21,23 @@ export default function RoulettePage() {
     spinCost,
     canSpin,
     spin,
+    finishSpin,
   } = useRoulette()
   const [error, setError] = useState<string | null>(null)
-  const [lastSpinIndex, setLastSpinIndex] = useState<number | null>(null)
 
   const handleSpin = async () => {
     setError(null)
     const result = await spin()
     if (!result.success) {
       setError(result.error || 'Error desconocido')
-      return
-    }
-    if (result.result) {
-      const idx = ROULETTE_RESULTS.findIndex((r) => r.id === result.result!.id)
-      if (idx >= 0) setLastSpinIndex(idx)
     }
   }
 
   const cooldownSec = Math.ceil(cooldownRemaining / 1000)
+  const cooldownH = Math.floor(cooldownSec / 3600)
+  const cooldownM = Math.floor((cooldownSec % 3600) / 60)
+  const cooldownS = cooldownSec % 60
+  const cooldownFormatted = `${String(cooldownH).padStart(2, '0')}h ${String(cooldownM).padStart(2, '0')}m ${String(cooldownS).padStart(2, '0')}s`
 
   return (
     <div className="space-y-lg">
@@ -61,8 +62,8 @@ export default function RoulettePage() {
           </p>
           <RouletteWheel
             spinning={spinning}
-            resultIndex={lastSpinIndex}
-            onSpinComplete={() => {}}
+            resultIndex={spinning ? currentSpinIndex : lastSpinIndex}
+            onSpinComplete={finishSpin}
           />
           {error && (
             <p className="font-label-md text-error bg-error-container px-md py-sm rounded-md">
@@ -72,7 +73,7 @@ export default function RoulettePage() {
           {cooldownRemaining > 0 ? (
             <Button variant="outline" size="lg" disabled className="w-full">
               <span className="material-symbols-outlined">schedule</span>
-              Espera {cooldownSec}s
+              Espera {cooldownFormatted}
             </Button>
           ) : (
             <Button
@@ -95,7 +96,7 @@ export default function RoulettePage() {
         </div>
       </GoldCard>
 
-      {lastResult && (
+      {lastResult && !spinning && (
         <StoneCard className="p-md">
           <div className="text-center">
             <p className="font-label-md text-label-md text-outline mb-xs">Última tirada</p>

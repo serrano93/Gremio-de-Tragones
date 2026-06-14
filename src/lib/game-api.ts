@@ -138,7 +138,7 @@ export async function getCurrentUserGold(): Promise<number> {
   if (session?.access_token && session.user?.id) {
     try {
       const response = await fetch(
-        `${supabaseUrl}/rest/v1/profiles?select=gold&id=eq.${session.user.id}&limit=1`,
+        `${supabaseUrl}/rest/v1/profiles?select=gold&auth_id=eq.${session.user.id}&limit=1`,
         {
           headers: {
             apikey: supabaseAnonKey,
