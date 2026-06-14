@@ -6,13 +6,24 @@ import './styles/index.css'
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Root element not found')
 
-// Detectar si hay una versión vieja del SW que cacheaba JS
+// Force SW update on every load so the PWA always serves the latest chunks
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then((regs) => {
     for (const reg of regs) {
-      if (reg.active && !reg.active.scriptURL.includes('sw.js')) {
-        reg.unregister().then(() => console.log('SW antiguo desregistrado'))
+      // Force the new SW to take over immediately
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
       }
+      reg.update().catch(() => {})
+    }
+  })
+
+  // Reload page when a new SW takes over (only once per session)
+  let reloaded = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!reloaded) {
+      reloaded = true
+      window.location.reload()
     }
   })
 }
