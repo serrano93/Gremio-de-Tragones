@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 const navItems = [
   { to: '/missions', icon: 'fort', label: 'Misiones' },
   { to: '/offers', icon: 'storefront', label: 'Mercado' },
-  { to: '/games', icon: 'toys', label: 'Juegos' },
+  { to: '/games', icon: 'casino', label: 'Juegos' },
   { to: '/guild', icon: 'military_tech', label: 'Rangos' },
   { to: '/profile', icon: 'inventory_2', label: 'Baúl' },
 ]

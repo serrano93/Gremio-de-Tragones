@@ -148,37 +148,46 @@ export default function ProfilePage() {
     try {
       const { isNativePlatform, waitForGoogleIdentity, signInWithGoogleGIS, startGoogleLogin, getGoogleErrorHint } = await import('../lib/oauth')
 
-      if (!isNativePlatform()) {
-        const gisReady = await waitForGoogleIdentity(3000)
-        if (gisReady) {
-          try {
-            await signInWithGoogleGIS()
-            const { getStoredSession, restRpc } = await import('../lib/supabase')
-            const localforage = (await import('localforage')).default
-            const newSession = getStoredSession()
-            if (newSession) {
-              const ok = await loadUserFromStoredSession(newSession)
-              if (ok) {
-                await tryClaimWelcomeBonus(restRpc, localforage, newSession.user.id)
-                toast('success', '¡Bienvenido al Gremio!')
-                setLoading(false)
-                return
-              }
-              toast('warning', 'Cuenta creada, perfil sincronizando...')
-              setTimeout(() => window.location.reload(), 500)
-              return
-            }
-            throw new Error('Session not saved after GIS login')
-          } catch (gisErr: any) {
-            console.warn('GIS flow failed, falling back to PKCE:', gisErr)
-            toast('warning', `Método alternativo: ${getGoogleErrorHint(gisErr?.message || '') || gisErr?.message || 'cargando...'}`, 4000)
-          }
-        } else {
-          console.warn('GIS script not loaded within 3s, falling back to PKCE')
-        }
+      // On native (APK), only implicit/PKCE flow works
+      if (isNativePlatform()) {
+        await startGoogleLogin()
+        return
       }
 
-      await startGoogleLogin()
+      // On web, always try GIS first (avoids server_error from PKCE flow)
+      const gisReady = await waitForGoogleIdentity(5000)
+      if (gisReady) {
+        try {
+          await signInWithGoogleGIS()
+          const { getStoredSession, restRpc } = await import('../lib/supabase')
+          const localforage = (await import('localforage')).default
+          const newSession = getStoredSession()
+          if (newSession) {
+            const ok = await loadUserFromStoredSession(newSession)
+            if (ok) {
+              await tryClaimWelcomeBonus(restRpc, localforage, newSession.user.id)
+              toast('success', '¡Bienvenido al Gremio!')
+              setLoading(false)
+              return
+            }
+            toast('warning', 'Cuenta creada, perfil sincronizando...')
+            setTimeout(() => window.location.reload(), 500)
+            return
+          }
+          throw new Error('Session not saved after GIS login')
+        } catch (gisErr: any) {
+          console.warn('GIS flow failed, no fallback to avoid server_error:', gisErr)
+          const friendly = getGoogleErrorHint(gisErr?.message || '') || gisErr?.message || 'Error con Google'
+          toast('error', `Google login: ${friendly}`, 6000)
+          setLoading(false)
+          return
+        }
+      } else {
+        // GIS script didn't load (ad blocker?) - show clear error
+        toast('error', 'Google Identity Services no se cargó. Desactiva bloqueadores de anuncios e intenta de nuevo.', 6000)
+        setLoading(false)
+        return
+      }
     } catch (err: any) {
       toast('error', err?.message || 'Error con Google')
       setLoading(false)

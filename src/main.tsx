@@ -64,6 +64,11 @@ async function setupCapacitorDeepLink() {
         const path = url.replace('com.gremio.tragones://', '').replace(/\/+$/, '')
         const target = `/${path || ''}${url.includes('?') ? url.substring(url.indexOf('?')) : ''}`
         console.log('[DeepLink] navigating WebView to:', target)
+        // Close the in-app Browser if it's open (so the WebView is visible)
+        import('@capacitor/browser')
+          .then(({ Browser }) => Browser.close().catch(() => {}))
+          .catch(() => {})
+        // Navigate the WebView to the auth callback route
         window.location.assign(target)
       }
     })

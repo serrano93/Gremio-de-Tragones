@@ -51,7 +51,7 @@ export async function startGoogleLogin(options: GoogleLoginOptions = {}): Promis
         await capacitorBrowser.Browser.open({
           url,
           windowName: '_self',
-          presentationStyle: 'popover',
+          presentationStyle: 'fullscreen',
         })
         return
       }
