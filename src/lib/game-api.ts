@@ -8,8 +8,6 @@ import {
   supabaseUrlValue as supabaseUrl,
   supabaseAnonKeyValue as supabaseAnonKey,
   getStoredSession,
-  AUTH_STORAGE_KEY,
-  type StoredSession,
 } from './supabase'
 import type { MinigameId } from './game-rewards'
 

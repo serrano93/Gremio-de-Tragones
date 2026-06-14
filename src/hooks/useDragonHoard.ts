@@ -81,26 +81,6 @@ async function fetchHoardFromDb(): Promise<HoardDbState | null> {
         gold: rows[0].gold ?? 0,
       }
     }
-    // Fallback: hoard columns don't exist yet, just get gold
-    if (res.status === 400 || res.status === 404) {
-      const fallbackRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?select=gold&auth_id=eq.${session.user.id}&limit=1`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      )
-      if (!fallbackRes.ok) return null
-      const rows = (await fallbackRes.json()) as Array<{ gold: number }>
-      if (!rows[0]) return null
-      return {
-        hoard_level: 1,
-        hoard_last_claim: new Date().toISOString(),
-        gold: rows[0].gold ?? 0,
-      }
-    }
     return null
   } catch {
     return null
@@ -253,7 +233,42 @@ export function useDragonHoard() {
 
     if (isLoggedIn) {
       const newGold = userGold - next.cost
-      // Try with all hoard fields; fall back to just gold
+      // Try the dedicated RPC first (migration 013)
+      const sessionStr = localStorage.getItem(AUTH_STORAGE_KEY)
+      if (sessionStr) {
+        try {
+          const session = JSON.parse(sessionStr) as {
+            access_token: string
+            user: { id: string }
+          }
+          const res = await fetch(
+            `${SUPABASE_URL}/rest/v1/rpc/purchase_hoard_upgrade`,
+            {
+              method: 'POST',
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ p_target_level: next.level }),
+            }
+          )
+          if (res.ok) {
+            const newState: HoardState = {
+              level: next.level,
+              lastClaim: Date.now(),
+              pendingGold: 0,
+            }
+            await localforage.setItem(`${GUEST_HOARD_KEY}_logged`, newState)
+            setState(newState)
+            setUserGold(newGold)
+            return
+          }
+        } catch {
+          // Fall through to legacy PATCH
+        }
+      }
+      // Fallback: PATCH gold + hoard fields directly
       let ok = await patchHoard({
         gold: newGold,
         hoard_level: next.level,
